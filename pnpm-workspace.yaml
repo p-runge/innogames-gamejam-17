@@ -1,3 +1,9 @@
+packages:
+  - "."
+  - "tools/*"
+
+allowBuilds:
+  unrs-resolver: false
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
