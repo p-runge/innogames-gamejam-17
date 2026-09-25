@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { EventEmitter, on } from "node:events";
 
 import type { GameEvent } from "./types";
@@ -14,6 +15,7 @@ type BusState = {
   emitter: EventEmitter;
   buffer: PublishedEvent[];
   nextId: number;
+  runId: string;
 };
 
 // Pinned to globalThis because `next dev` re-evaluates modules on every edit.
@@ -30,8 +32,17 @@ function getBus(): BusState {
     emitter: new EventEmitter().setMaxListeners(0),
     buffer: [],
     nextId: 1,
+    // Ids restart at 1 in every process, so the number alone cannot say which
+    // run minted it. This tags the run so a client reconnecting across a
+    // restart is recognisable as belonging to a numbering that no longer holds.
+    runId: randomUUID().slice(0, 8),
   };
   return globalForBus.gameEventBus;
+}
+
+/** Identifies this process's id sequence; changes whenever the bus is created. */
+export function getRunId(): string {
+  return getBus().runId;
 }
 
 export function publish(event: GameEvent): PublishedEvent {
@@ -70,13 +81,13 @@ export function subscribe(opts: {
   const { lastEventId } = opts;
   const newestId = bus.buffer.at(-1)?.id ?? 0;
 
-  // An id above everything this process has issued comes from a client that
-  // reconnected across a restart, which reset the counter. It cannot resume, so
-  // it starts from the present rather than waiting out the old numbering.
-  const canResume = lastEventId !== null && lastEventId <= newestId;
-  const backlog = canResume
-    ? bus.buffer.filter((published) => published.id > lastEventId)
-    : [];
+  // Recognising an id from an earlier process run is not decidable here — the
+  // sequence number alone does not say which run minted it. That belongs to
+  // whoever hands out the ids; see `parseLastEventId` in the events router.
+  const backlog =
+    lastEventId === null
+      ? []
+      : bus.buffer.filter((published) => published.id > lastEventId);
 
   return stream(live, backlog, newestId, opts.signal);
 }

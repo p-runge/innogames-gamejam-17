@@ -105,8 +105,11 @@ describe("subscribe", () => {
 
     expect(first.value?.event.payload.message).toBe("buffered");
     expect(second.value?.event.payload.message).toBe("during-replay");
+
+    // The "exactly once" half: a duplicate would resolve `third` with an event
+    // instead of ending the stream.
     controller.abort();
-    await third;
+    expect((await third).done).toBe(true);
   });
 
   it("falls back to live events when lastEventId predates the buffer", async () => {
@@ -121,22 +124,6 @@ describe("subscribe", () => {
     // Event 1 fell out of the buffer; the oldest survivor is delivered instead
     // of crashing or re-sending everything.
     expect(received[0]?.id).toBe(6);
-    controller.abort();
-  });
-
-  it("ignores a lastEventId left over from a previous server run", async () => {
-    // A redeploy restarts the id counter, so the browser reports an id the new
-    // process has never issued. Resuming "after 57" would mute the stream until
-    // the counter climbed past 57.
-    publish(tweet("one"));
-    const controller = new AbortController();
-    const generator = subscribe({ signal: controller.signal, lastEventId: 57 });
-    const collected = collect(generator, 1);
-
-    publish(tweet("after-restart"));
-
-    const received = await collected;
-    expect(received[0]?.event.payload.message).toBe("after-restart");
     controller.abort();
   });
 
