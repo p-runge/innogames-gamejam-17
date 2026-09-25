@@ -1,0 +1,33 @@
+# Everything here would otherwise be baked into an image layer, where deleting
+# it later does not remove it — the layer keeps the content.
+
+node_modules
+**/node_modules
+
+# Secrets never belong in a layer. Values come from Coolify at runtime.
+.env
+.env.*
+
+.next
+out
+build
+coverage
+
+.git
+.github
+.claude
+.superpowers
+.private
+
+*.tsbuildinfo
+next-env.d.ts
+
+.DS_Store
+*.log
+
+Dockerfile
+.dockerignore
+docker-compose*.yml
+README.md
+AGENTS.md
+CLAUDE.md
