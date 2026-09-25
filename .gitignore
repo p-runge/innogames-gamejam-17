@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# scratch space: design docs, notes, throwaway files
+/.private/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
