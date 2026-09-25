@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { Candle } from "~/components/candle-chart";
-import { TRADING_SESSION } from "~/utils/trading-session";
+import { TRADING_SESSION } from "~/lib/trading-session";
 
 type MarketFeedOptions = {
   startPrice?: number;

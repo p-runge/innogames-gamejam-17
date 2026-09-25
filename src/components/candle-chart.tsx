@@ -4,8 +4,8 @@ import type { EChartsOption } from "echarts";
 import ReactECharts from "echarts-for-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { cn } from "~/utils/cn";
-import { formatClock, sessionSlots } from "~/utils/trading-session";
+import { cn } from "~/lib/cn";
+import { formatClock, sessionSlots } from "~/lib/trading-session";
 
 export type Candle = {
   /** The candle's slot on the in-game clock, in minutes since midnight. */
