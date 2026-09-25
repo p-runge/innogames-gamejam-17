@@ -10,6 +10,22 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /*
+    The trading screen's own palette. It is fixed rather than themed: the screen
+    is a lit display inside a photo, so it stays dark whatever the OS is set to.
+    Up/down are status colors and are never reused for anything else, so that a
+    green or red anywhere on the screen only ever means a direction.
+
+    CandleChart mirrors these values in TypeScript — ECharts paints into SVG
+    with its own style objects and cannot read a utility class. Change a color
+    here and change it there.
+  */
+  --color-terminal: #101013;
+  --color-terminal-grid: #2c2c2a;
+  --color-terminal-muted: #898781;
+  --color-up: #0ca30c;
+  --color-down: #d03b3b;
 }
 
 @media (prefers-color-scheme: dark) {
