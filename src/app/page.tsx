@@ -43,6 +43,43 @@ export default function Home() {
           */}
           <Screen className="origin-bottom rotate-x-[33.964deg]" />
         </div>
+        {/*
+          The hands reach in from below the photo, so most of each arm hangs
+          past the bottom edge. Clipping them to the box keeps the arms inside
+          the laptop rather than letting them run into the letterbox bars that
+          appear whenever the viewport is taller than the photo.
+        */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {/*
+            Each hand is placed by its fingertips rather than by its bounding
+            box, since the fingertips are what has to meet the keys. Both spreads
+            center on y 160 of the 941-tall artwork, and the top offsets carry
+            that line onto the home row at y 864 of the photo — the two values
+            differ only because the hands have different aspect ratios and
+            therefore render at different heights for the same 26% width.
+
+            Horizontally the pair straddles the letter block (x 90 to 1330 of
+            1672), not the photo, because the navigation keys on the right push
+            the photo's center line off the board: centering on the photo would
+            park the right hand on the bracket keys.
+          */}
+          <Image
+            src="/left-hand.png"
+            alt=""
+            width={852}
+            height={941}
+            sizes="26vw"
+            className="absolute top-[83.19%] left-[11.97%] h-auto w-[26%]"
+          />
+          <Image
+            src="/right-hand.png"
+            alt=""
+            width={814}
+            height={941}
+            sizes="26vw"
+            className="absolute top-[82.79%] right-[24.03%] h-auto w-[26%]"
+          />
+        </div>
       </div>
     </main>
   );
