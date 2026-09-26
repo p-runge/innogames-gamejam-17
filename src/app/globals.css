@@ -26,6 +26,21 @@
   --color-terminal-muted: #898781;
   --color-up: #0ca30c;
   --color-down: #d03b3b;
+
+  /*
+    Y's own palette, light where the rest of the screen is dark — a browser
+    window on the same desktop, not another terminal panel.
+
+    Named feed-* rather than y-* on purpose: `border-y-<color>` is already
+    Tailwind's utility for the top-and-bottom border, so a `y-` token would be
+    parsed as that and silently paint the wrong edges.
+  */
+  --color-feed-surface: #ffffff;
+  --color-feed-ink: #0f1419;
+  --color-feed-muted: #536471;
+  --color-feed-line: #eff3f4;
+  --color-feed-hover: #f7f9f9;
+  --color-feed-accent: #1d9bf0;
 }
 
 @media (prefers-color-scheme: dark) {
