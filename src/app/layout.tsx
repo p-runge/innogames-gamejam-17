@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import GameEventListener from "~/components/game-event-listener";
+import GameStateProvider from "~/components/game-state-provider";
 import { TRPCReactProvider } from "~/lib/trpc/client";
 import "./globals.css";
 
@@ -26,8 +26,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col font-sans">
         <TRPCReactProvider>
-          <GameEventListener />
-          {children}
+          {/*
+            Wraps the tree rather than sitting beside it: the panels read the
+            world from this provider's context, so it has to be an ancestor.
+          */}
+          <GameStateProvider>{children}</GameStateProvider>
         </TRPCReactProvider>
       </body>
     </html>
