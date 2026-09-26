@@ -17,7 +17,7 @@ const VOLATILITY = 0.0022;
  * Per-tick drift a mood contributes while its impulse is alive. These and the
  * weights below are the balancing knobs; expect to turn them in playtesting.
  */
-const MOOD_DRIFT: Record<Mood, number> = {
+export const MOOD_DRIFT: Record<Mood, number> = {
   dump: -0.004,
   bearish: -0.0015,
   neutral: 0,

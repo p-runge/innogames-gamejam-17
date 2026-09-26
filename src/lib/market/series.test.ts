@@ -4,9 +4,10 @@ import {
   addImpulse,
   advance,
   createState,
+  type MarketState,
+  MOOD_DRIFT,
   START_PRICE,
   TICK_SECONDS,
-  type MarketState,
 } from "./series";
 
 /** No shock: 0.5 maps to the middle of the -1..1 range the walk samples. */
@@ -77,5 +78,21 @@ describe("addImpulse", () => {
   it("lets a dump pull the price below the open", () => {
     const dumped = advanceBy(addImpulse(createState(), "dump", "reaction"), 3);
     expect(dumped.candles[0].close).toBeLessThan(START_PRICE);
+  });
+});
+
+describe("MOOD_DRIFT", () => {
+  /*
+    The probe under tools/ runs on plain Node, which cannot resolve this file's
+    `~` imports, so it carries its own copy of the table. A copy that drifts
+    turns every measurement into a confident wrong number, which is worse than
+    having no probe at all — so the copy is pinned here.
+  */
+  it("matches the table the eval probe measures against", async () => {
+    const { MOOD_DRIFT: probeTable } = await import(
+      "../../../tools/llm-eval/suite.ts"
+    );
+
+    expect(probeTable).toEqual(MOOD_DRIFT);
   });
 });

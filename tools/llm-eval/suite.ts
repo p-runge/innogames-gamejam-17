@@ -38,3 +38,20 @@ export const REPLY_CASES = [
     tweet: "anything happening or should I make coffee",
   },
 ] as const;
+
+/**
+ * What each mood is worth to the price, mirroring `MOOD_DRIFT` in
+ * src/lib/market/series.ts.
+ *
+ * Copied rather than imported: that module reaches `~/lib/trading-session` at
+ * runtime, and plain Node — which is what runs these tools — does not resolve
+ * the alias. A test in src/lib/market/series.test.ts pins the two together, so
+ * the copy cannot quietly go stale and report drift the game does not have.
+ */
+export const MOOD_DRIFT = {
+  dump: -0.004,
+  bearish: -0.0015,
+  neutral: 0,
+  bullish: 0.0015,
+  moon: 0.004,
+} as const;
