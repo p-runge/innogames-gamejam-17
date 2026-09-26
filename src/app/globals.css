@@ -47,6 +47,12 @@
   --color-feed-line: #2f3336;
   --color-feed-hover: #16181c;
   --color-feed-accent: #1d9bf0;
+  /*
+    The unread badge. Its own token rather than --color-down: red means a falling
+    price everywhere else on this screen, and a count of notifications is not a
+    direction.
+  */
+  --color-feed-alert: #f4212e;
 
   /* The window furniture Y sits in — chrome, not page. */
   --color-browser: #dee1e6;
