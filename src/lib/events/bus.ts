@@ -9,6 +9,21 @@ export type PublishedEvent = { id: number; event: GameEvent };
 
 export const BUFFER_SIZE = 100;
 
+/**
+ * Event kinds that are delivered live but never replayed.
+ *
+ * `price` is a snapshot kind: the newest candle supersedes every earlier one,
+ * and a joining or reconnecting client gets the whole series from
+ * `session.state` instead. The other kinds are a log — each one is a thing that
+ * was said, and missing it means it is gone.
+ *
+ * Buffering both in one FIFO does not work: the engine publishes four price
+ * events a second, so within 25 seconds they own every slot and a client
+ * reconnecting after a blip replays a screenful of superseded candles and none
+ * of the posts it actually missed.
+ */
+const EPHEMERAL_TYPES: ReadonlySet<GameEvent["type"]> = new Set(["price"]);
+
 const CHANNEL = "event";
 
 type BusState = {
@@ -49,8 +64,13 @@ export function publish(event: GameEvent): PublishedEvent {
   const bus = getBus();
   const published: PublishedEvent = { id: bus.nextId++, event };
 
-  bus.buffer.push(published);
-  if (bus.buffer.length > BUFFER_SIZE) bus.buffer.shift();
+  // Ids are handed out for every event, ephemeral or not, so a client's
+  // Last-Event-ID still describes a single ordering.
+  if (!EPHEMERAL_TYPES.has(event.type)) {
+    bus.buffer.push(published);
+    if (bus.buffer.length > BUFFER_SIZE) bus.buffer.shift();
+  }
+
   bus.emitter.emit(CHANNEL, published);
 
   return published;

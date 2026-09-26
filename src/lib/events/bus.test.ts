@@ -36,8 +36,50 @@ async function collect(
   return received;
 }
 
+function price(close: number): GameEvent {
+  return {
+    type: "price",
+    payload: { candle: { t: 540, open: close, high: close, low: close, close } },
+  };
+}
+
 afterEach(() => {
   resetBus();
+});
+
+describe("replay buffer", () => {
+  it("does not let the price stream evict what a client must not miss", async () => {
+    // The engine publishes four price events a second. If those took buffer
+    // slots, a reconnecting client's backlog would be 25 seconds of superseded
+    // candles and none of the posts it actually missed.
+    publish(tweet("the post that matters"));
+    for (let i = 0; i < BUFFER_SIZE * 2; i++) publish(price(1240 + i));
+
+    const controller = new AbortController();
+    const received = await collect(
+      subscribe({ signal: controller.signal, lastEventId: 0 }),
+      1,
+    );
+    controller.abort();
+
+    expect(messageOf(received[0])).toBe("the post that matters");
+  });
+
+  it("still delivers price events live to an attached subscriber", async () => {
+    // Not buffering them must not mean not sending them.
+    const controller = new AbortController();
+    const generator = subscribe({
+      signal: controller.signal,
+      lastEventId: null,
+    });
+    const collected = collect(generator, 1);
+
+    publish(price(1250));
+
+    const received = await collected;
+    controller.abort();
+    expect(received[0]?.event.type).toBe("price");
+  });
 });
 
 describe("publish", () => {
