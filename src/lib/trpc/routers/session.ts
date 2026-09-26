@@ -1,4 +1,5 @@
 import { getMarketState, isRunning } from "~/lib/market/engine";
+import { tipHistory } from "~/lib/news/desk";
 import { startRound } from "~/lib/round";
 import { baseProcedure, router } from "../init";
 
@@ -21,6 +22,14 @@ export const sessionRouter = router({
    */
   state: baseProcedure.query(() => {
     const { candles, closed } = getMarketState();
-    return { candles, closed, running: isRunning() };
+    return {
+      candles,
+      closed,
+      running: isRunning(),
+      // The informant's messages so far. A client that joins or reloads
+      // mid-round rebuilds the dock from this; the subscription carries it
+      // from there.
+      tips: tipHistory(),
+    };
   }),
 });

@@ -81,6 +81,22 @@ export const leanSchema = z.object({
 export type Lean = z.infer<typeof leanSchema>["lean"];
 
 /**
+ * One leaked message from the informant.
+ *
+ * A single field, and deliberately not the direction: the news desk drew that
+ * before the request went out, and asking a 4B model to restate a label it was
+ * given is how the label gets lost.
+ *
+ * The 200 is a layout bound, not how length is controlled; the prompt asks for
+ * the length that is wanted and this leaves room to finish the sentence.
+ */
+export const tipSchema = z.object({
+  body: z.string().min(1).max(200).regex(HAS_A_WORD),
+});
+
+export type Tip = z.infer<typeof tipSchema>;
+
+/**
  * What the model is actually asked for. `stance` is left out because the model
  * picks it badly: asked for it alongside the prose it defaulted to "bull" for
  * four personas in a row. A caller supplies the stance and combines the two.
