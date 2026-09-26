@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TRADING_SESSION } from "~/lib/trading-session";
 import {
+  addImpulse,
   advance,
   createState,
   type MarketState,
@@ -51,6 +52,25 @@ describe("advance", () => {
     const done = advanceBy(createState(), (slots + 2) * TICKS_PER_CANDLE);
     expect(done.closed).toBe(true);
     expect(advance(done, flat)).toBe(done);
+  });
+});
+
+describe("addImpulse scale", () => {
+  it("defaults to the unscaled impulse", () => {
+    const withDefault = addImpulse(createState(), "moon");
+    const withOne = addImpulse(createState(), "moon", 1);
+    expect(withDefault.impulse).toBeGreaterThan(0);
+    expect(withDefault.impulse).toBe(withOne.impulse);
+  });
+
+  it("multiplies the impulse by the scale", () => {
+    const single = addImpulse(createState(), "moon", 1);
+    const double = addImpulse(createState(), "moon", 2);
+    expect(double.impulse).toBeCloseTo(single.impulse * 2, 10);
+  });
+
+  it("keeps the sign of the mood when scaled", () => {
+    expect(addImpulse(createState(), "dump", 2.2).impulse).toBeLessThan(0);
   });
 });
 

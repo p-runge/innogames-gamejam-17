@@ -58,8 +58,20 @@ export function createState(startPrice = START_PRICE): MarketState {
   };
 }
 
-export function addImpulse(state: MarketState, mood: Mood): MarketState {
-  return { ...state, impulse: state.impulse + MOOD_DRIFT[mood] };
+/**
+ * Let a post or a leaked event move the price.
+ *
+ * `scale` exists for the news desk, which draws a strength per event rather
+ * than reading one off a mood: the five mood steps fix the direction and the
+ * scale carries how big the thing is. A suggested post passes nothing and is
+ * worth exactly its mood.
+ */
+export function addImpulse(
+  state: MarketState,
+  mood: Mood,
+  scale = 1,
+): MarketState {
+  return { ...state, impulse: state.impulse + MOOD_DRIFT[mood] * scale };
 }
 
 /**

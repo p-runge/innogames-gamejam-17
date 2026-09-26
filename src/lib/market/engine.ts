@@ -94,10 +94,10 @@ export function stopSession(): void {
  * series nobody is watching, and an impulse arriving after the bell is dropped
  * rather than held over into the next round.
  */
-export function applyImpulse(mood: Mood): void {
+export function applyImpulse(mood: Mood, scale = 1): void {
   const engine = getEngine();
   if (!engine.timer) return;
-  engine.market = addImpulse(engine.market, mood);
+  engine.market = addImpulse(engine.market, mood, scale);
 }
 
 /** Test-only: drop all state so each test starts from a fresh session. */
