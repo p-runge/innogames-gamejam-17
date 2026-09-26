@@ -6,6 +6,10 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // tools/llm-eval runs directly under Node, which strips types rather than
+    // resolving them, so its imports must carry the real .ts extension. Safe
+    // with noEmit: it widens what may be written, never what is emitted.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
