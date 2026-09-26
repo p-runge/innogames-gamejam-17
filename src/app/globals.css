@@ -28,19 +28,32 @@
   --color-down: #d03b3b;
 
   /*
-    Y's own palette, light where the rest of the screen is dark — a browser
-    window on the same desktop, not another terminal panel.
+    Y's own palette: the site in dark mode, inside a browser whose chrome stays
+    light. That is the honest combination — the chrome follows the OS and the
+    page follows the site's own setting, so the two disagreeing is what a real
+    dark-mode site in a light browser looks like.
+
+    These are the values of X's own "Lights out" theme: black rather than a dark
+    grey, which is what makes the accent blue read the way it does on the real
+    thing.
 
     Named feed-* rather than y-* on purpose: `border-y-<color>` is already
     Tailwind's utility for the top-and-bottom border, so a `y-` token would be
     parsed as that and silently paint the wrong edges.
   */
-  --color-feed-surface: #ffffff;
-  --color-feed-ink: #0f1419;
-  --color-feed-muted: #536471;
-  --color-feed-line: #eff3f4;
-  --color-feed-hover: #f7f9f9;
+  --color-feed-surface: #000000;
+  --color-feed-ink: #e7e9ea;
+  --color-feed-muted: #71767b;
+  --color-feed-line: #2f3336;
+  --color-feed-hover: #16181c;
   --color-feed-accent: #1d9bf0;
+
+  /* The window furniture Y sits in — chrome, not page. */
+  --color-browser: #dee1e6;
+  --color-browser-tab: #ffffff;
+  --color-browser-field: #f1f3f4;
+  --color-browser-ink: #3c4043;
+  --color-browser-muted: #5f6368;
 }
 
 @media (prefers-color-scheme: dark) {

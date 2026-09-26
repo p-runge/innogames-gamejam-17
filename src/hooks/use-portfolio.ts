@@ -2,10 +2,16 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import type { BankTransaction } from "~/components/bank-account";
 import { euro } from "~/lib/money";
 
 export type TradeSide = "buy" | "sell";
+
+export type LedgerEntry = {
+  id: string;
+  label: string;
+  /** Signed. Negative is money leaving the account. */
+  amount: number;
+};
 
 type PortfolioOptions = {
   symbol: string;
@@ -30,7 +36,7 @@ export function usePortfolio({
     // Seeded so the account opens with a statement rather than a blank list.
     transactions: [
       { id: "opening", label: "Opening balance", amount: startingCash },
-    ] as BankTransaction[],
+    ] as LedgerEntry[],
   }));
 
   // Counted outside the updater below, which React may run more than once per
@@ -51,7 +57,7 @@ export function usePortfolio({
         if (side === "sell" && quantity > previous.shares) return previous;
 
         const buying = side === "buy";
-        const transaction: BankTransaction = {
+        const transaction: LedgerEntry = {
           id,
           label: `${buying ? "Buy" : "Sell"} ${quantity} · ${symbol} @ ${euro(price)}`,
           amount: buying ? -value : value,
@@ -70,5 +76,7 @@ export function usePortfolio({
     [ledgerLength, symbol],
   );
 
-  return { ...portfolio, trade };
+  // startingCash comes back out so the portfolio can measure the day against it
+  // — it is the only record of where the account opened.
+  return { ...portfolio, startingCash, trade };
 }
