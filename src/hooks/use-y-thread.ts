@@ -1,81 +1,30 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
-export type YPost = {
-  id: string;
-  author: string;
-  /** Including the leading @. */
-  handle: string;
-  body: string;
-  /** The in-game clock, in minutes since midnight — same scale as a candle's t. */
-  at: number;
-  /** Posted by the player. */
-  mine?: boolean;
-  /** Engagement counts. Decoration — nothing in the game reads them. */
-  replies?: number;
-  reposts?: number;
-  likes?: number;
-};
+import { useGameState } from "~/components/game-state-provider";
+import { buildThread, type FeedPost } from "~/lib/feed/thread";
 
-/*
-  The opening post and the replies it drew. All invented: none of these handles
-  belongs to a real account, and the tip is the game's fiction, not a claim about
-  anything tradable.
-*/
-const THREAD: YPost[] = [
-  {
-    id: "root",
-    author: "Market Whisper",
-    handle: "@whisper",
-    body: "Something is happening at INNO today. Watch the open. Not financial advice.",
-    at: 9 * 60,
-    replies: 412,
-    reposts: 1203,
-    likes: 8941,
-  },
-  {
-    id: "reply-1",
-    author: "Kleinanleger",
-    handle: "@dieptkauf",
-    body: "you post this every single morning",
-    at: 9 * 60 + 2,
-    replies: 7,
-    reposts: 2,
-    likes: 340,
-  },
-  {
-    id: "reply-2",
-    author: "Chart Crimes",
-    handle: "@chartcrimes",
-    body: "textbook cup and handle on the 5m. I am so ready.",
-    at: 9 * 60 + 4,
-    replies: 31,
-    reposts: 14,
-    likes: 96,
-  },
-  {
-    id: "reply-3",
-    author: "Exit Liquidity",
-    handle: "@exitliq",
-    body: "last time I listened to this account I sold my bike",
-    at: 9 * 60 + 7,
-    replies: 2,
-    reposts: 0,
-    likes: 1502,
-  },
-];
+export type YPost = FeedPost;
 
 /**
- * The Y thread: a seeded conversation the player can post into. Replies from the
- * crowd are static for now — have the game append to this list if you want them
- * to react to the index as the day runs.
+ * The Y thread: the crowd's replies as they arrive from the server, with the
+ * player's own posts merged in.
+ *
+ * The two sources are kept apart on purpose. Crowd replies come over the event
+ * bus and are the same for every browser; the player's posts are local and
+ * optimistic, so a post appears the moment it is typed rather than after a
+ * round trip. `mergePosts` puts both in clock order for rendering.
  */
 export function useYThread({
   author = "You",
   handle = "@you",
 }: { author?: string; handle?: string } = {}) {
-  const [posts, setPosts] = useState<YPost[]>(THREAD);
+  const { replies } = useGameState();
+  const [mine, setMine] = useState<YPost[]>([]);
+
+  // Counted outside the updater below, which React may run more than once per
+  // call — ids have to come from somewhere that is not re-entered.
   const nextId = useRef(0);
 
   const post = useCallback(
@@ -83,16 +32,17 @@ export function useYThread({
       const trimmed = body.trim();
       if (!trimmed) return;
 
-      // Counted outside the updater, which React may run more than once.
       const id = `mine-${nextId.current++}`;
 
-      setPosts((previous) => [
+      setMine((previous) => [
         ...previous,
         { id, author, handle, body: trimmed, at, mine: true },
       ]);
     },
     [author, handle],
   );
+
+  const posts = useMemo(() => buildThread(replies, mine), [replies, mine]);
 
   return { posts, post };
 }

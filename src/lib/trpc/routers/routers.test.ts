@@ -1,9 +1,18 @@
 import { isTrackedEnvelope } from "@trpc/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRunId, publish, resetBus } from "~/lib/events/bus";
 import type { GameEvent } from "~/lib/events/types";
 import { resetMarket } from "~/lib/market/engine";
+import { resetCast } from "~/lib/npc/cast";
+import { resetCrowd } from "~/lib/npc/crowd";
+import { resetQueue } from "~/lib/npc/queue";
 import { appRouter } from "./_app";
+
+// `session.start` generates the cast and `sendTweet` queues reactions, both of
+// which call the model. Without this the suite would talk to whatever is
+// listening on LLM_BASE_URL — a real container on a developer machine, nothing
+// in CI — and the same test would pass for different reasons in each.
+vi.mock("~/lib/llm/client", () => ({ generate: vi.fn(async () => null) }));
 
 // The signal belongs to createCaller, not to the procedure call. Passing it as
 // a second argument to the procedure type-checks nowhere and is dropped at
@@ -27,9 +36,13 @@ function unwrap(value: unknown): { id: string; event: GameEvent } {
 
 afterEach(() => {
   resetBus();
-  // The market is pinned to globalThis, so without this a session started in one
-  // test is still ticking in the next one.
+  // All of these are pinned to globalThis, so without resetting them a session
+  // started in one test keeps ticking through the next, and `startCrowd`'s
+  // timers outlive the run.
   resetMarket();
+  resetCrowd();
+  resetCast();
+  resetQueue();
 });
 
 describe("session", () => {

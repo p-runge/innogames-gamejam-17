@@ -4,11 +4,16 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSubscription } from "@trpc/tanstack-react-query";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
+import type { ReplyPayload } from "~/lib/events/types";
 import { joinSeries, mergeCandle } from "~/lib/market/merge";
 import type { Candle } from "~/lib/market/types";
 import { useTRPC } from "~/lib/trpc/client";
 
-type GameState = { candles: Candle[] };
+type GameState = {
+  candles: Candle[];
+  /** Crowd replies in arrival order. The player's own posts stay local. */
+  replies: ReplyPayload[];
+};
 
 const GameStateContext = createContext<GameState | null>(null);
 
@@ -28,6 +33,7 @@ export default function GameStateProvider({
   // would mean setting state in an effect, which this project's lint rules
   // rightly refuse.
   const [live, setLive] = useState<Candle[]>([]);
+  const [liveReplies, setLiveReplies] = useState<ReplyPayload[]>([]);
 
   const start = useMutation(trpc.session.start.mutationOptions());
   // Refetched on a timer, not just once. The snapshot is this client's only way
@@ -52,6 +58,14 @@ export default function GameStateProvider({
     [snapshot.data, live],
   );
 
+  // The server's history first, then whatever the stream has added since. On a
+  // mid-round reload the history is the whole thread; duplicates across the two
+  // are dropped where the thread is built.
+  const replies = useMemo(
+    () => [...(snapshot.data?.replies ?? []), ...liveReplies],
+    [snapshot.data, liveReplies],
+  );
+
   useSubscription(
     trpc.events.onEvent.subscriptionOptions(undefined, {
       // `tracked()` on the server wraps each event, so the payload arrives as
@@ -61,8 +75,13 @@ export default function GameStateProvider({
           case "price":
             setLive((previous) => mergeCandle(previous, data.payload.candle));
             break;
+          case "reply":
+            setLiveReplies((previous) => [...previous, data.payload]);
+            break;
           case "tweet":
-            console.log(`@${data.payload.username}: ${data.payload.message}`);
+            // The player's own post is rendered optimistically where it was
+            // typed, so the echo back over the bus needs no handling here. The
+            // event still exists for a future second player.
             break;
         }
       },
@@ -72,8 +91,10 @@ export default function GameStateProvider({
     }),
   );
 
+  const value = useMemo(() => ({ candles, replies }), [candles, replies]);
+
   return (
-    <GameStateContext.Provider value={{ candles }}>
+    <GameStateContext.Provider value={value}>
       {children}
     </GameStateContext.Provider>
   );
