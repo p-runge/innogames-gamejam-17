@@ -24,8 +24,8 @@ export const env = createEnv({
       .default("http://127.0.0.1:11435"),
     LLM_MODEL: z.string().min(1).default("qwen3.5:4b"),
     /**
-     * Off means the game runs on curated personas and templated replies. It is
-     * the switch that keeps a broken container from taking the game down.
+     * Off means nothing calls the model at all. It is the switch that keeps a
+     * broken container from taking the game down.
      */
     LLM_ENABLED: z.stringbool().default(true),
     /** A single generation that outruns this is abandoned, not awaited. */

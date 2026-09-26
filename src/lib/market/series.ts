@@ -1,5 +1,5 @@
 import { TRADING_SESSION } from "~/lib/trading-session";
-import type { Candle, ImpulseSource, Mood } from "./types";
+import type { Candle, Mood } from "./types";
 
 /** The index's opening print. */
 export const START_PRICE = 1240;
@@ -14,20 +14,19 @@ const DRIFT = 0.00004;
 const VOLATILITY = 0.0022;
 
 /**
- * Per-tick drift a mood contributes while its impulse is alive. These and the
- * weights below are the balancing knobs; expect to turn them in playtesting.
+ * Per-tick drift one posted mood contributes while its impulse is alive. This is
+ * the balancing knob; expect to turn it in playtesting.
+ *
+ * With the impulse decaying at `IMPULSE_DECAY` a single post is worth roughly
+ * `MOOD_DRIFT / (1 - IMPULSE_DECAY)` in total price move, so moon and dump come
+ * out near 7% and the middle two near 2.5%.
  */
 export const MOOD_DRIFT: Record<Mood, number> = {
-  dump: -0.004,
-  bearish: -0.0015,
+  dump: -0.01,
+  bearish: -0.00375,
   neutral: 0,
-  bullish: 0.0015,
-  moon: 0.004,
-};
-
-const SOURCE_WEIGHT: Record<ImpulseSource, number> = {
-  ambient: 1,
-  reaction: 2.5,
+  bullish: 0.00375,
+  moon: 0.01,
 };
 
 /** Fraction of the impulse that survives each tick. */
@@ -59,15 +58,8 @@ export function createState(startPrice = START_PRICE): MarketState {
   };
 }
 
-export function addImpulse(
-  state: MarketState,
-  mood: Mood,
-  source: ImpulseSource,
-): MarketState {
-  return {
-    ...state,
-    impulse: state.impulse + MOOD_DRIFT[mood] * SOURCE_WEIGHT[source],
-  };
+export function addImpulse(state: MarketState, mood: Mood): MarketState {
+  return { ...state, impulse: state.impulse + MOOD_DRIFT[mood] };
 }
 
 /**

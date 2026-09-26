@@ -5,7 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
-import { MAX_TWEET_LENGTH } from "~/lib/feed/tweet";
+import {
+  type Suggestion,
+  SUGGESTIONS_SHOWN,
+  suggestionsAt,
+} from "~/lib/feed/suggestions";
+import type { Mood } from "~/lib/market/types";
 import { formatClock } from "~/lib/trading-session";
 
 /*
@@ -33,12 +38,28 @@ function Avatar({ post }: { post: Pick<YPost, "author" | "handle"> }) {
 }
 
 /**
- * The composer's id. The hands overlay sits outside the screen, in a different
- * subtree, and finds this field by id rather than by a callback threaded down
- * through the panels — a decorative animation should not show up in the props
- * of everything between it and the keyboard.
+ * Fired on the window when the player posts.
+ *
+ * The hands overlay sits outside the screen, in a different subtree, and listens
+ * for this rather than taking a callback threaded down through the panels — a
+ * decorative animation should not show up in the props of everything between it
+ * and the feed.
  */
-export const COMPOSER_ID = "y-composer";
+export const POST_EVENT = "y-post";
+
+/**
+ * How a mood reads in the suggestion panel. The arrows are the whole tutorial:
+ * the player has to be able to see which line pushes the price which way before
+ * clicking it, or picking one is guesswork.
+ */
+const MOOD_MARK: Record<Mood, { arrow: string; color: string; label: string }> =
+  {
+    dump: { arrow: "▼▼", color: "#f4212e", label: "Dump" },
+    bearish: { arrow: "▼", color: "#e0723c", label: "Bearish" },
+    neutral: { arrow: "—", color: "#8b98a5", label: "Neutral" },
+    bullish: { arrow: "▲", color: "#3fb950", label: "Bullish" },
+    moon: { arrow: "▲▲", color: "#00d084", label: "Moon" },
+  };
 
 const compact = new Intl.NumberFormat("en", { notation: "compact" });
 
@@ -237,11 +258,10 @@ function Reply({ post }: { post: YPost }) {
 
 /**
  * Y — the thread the trading day is arguing in. The opening post sits at the
- * top as the thread's subject, everything after it is a reply, and the player's
- * own posts join the same list so they read as part of the conversation rather
- * than a separate log.
+ * top as the thread's subject, and the player's own posts join the same list so
+ * they read as part of the conversation rather than a separate log.
  *
- * Replies render newest first, directly under the opening post, so an arriving
+ * Posts render newest first, directly under the opening post, so an arriving
  * post lands where the reader is already looking instead of off the bottom edge.
  * `posts` stays in clock order — the reversal is a rendering decision and the
  * thread that feeds it keeps reading chronologically.
@@ -252,10 +272,18 @@ export default function YFeed({
   className,
 }: {
   posts: YPost[];
-  onPost: (body: string) => void;
+  onPost: (suggestion: Suggestion) => void;
   className?: string;
 }) {
-  const [draft, setDraft] = useState("");
+  /*
+    Where in the pool the offered suggestions start. Advanced past the three on
+    offer after each post, so the player is not looking at the line they just
+    used — and an offset rather than a random pick because this renders on the
+    server too, where `Math.random()` is a hydration mismatch.
+  */
+  const [offset, setOffset] = useState(0);
+  const suggestions = suggestionsAt(offset);
+
   // The rest element is a fresh array, so reversing it in place leaves `posts`
   // alone.
   const [root, ...rest] = posts;
@@ -368,15 +396,16 @@ export default function YFeed({
     enableAnimation(posts.length > 1);
   }, [enableAnimation, posts.length]);
 
-  const submit = () => {
-    if (!draft.trim()) return;
-
-    // Only the player's own posts pull the thread down. When the crowd starts
-    // replying on its own, an arriving post must not yank the view out from
-    // under someone reading.
+  const submit = (suggestion: Suggestion) => {
+    // The player's own post always pulls the thread down to it, whether or not
+    // they had scrolled away to read older ones.
     followOwnPost.current = true;
-    onPost(draft);
-    setDraft("");
+    onPost(suggestion);
+    setOffset((previous) => previous + SUGGESTIONS_SHOWN);
+
+    // What the hands overlay taps to. Dispatched here rather than in the overlay
+    // so the animation follows the post itself, not a click that was ignored.
+    window.dispatchEvent(new Event(POST_EVENT));
   };
 
   return (
@@ -431,48 +460,49 @@ export default function YFeed({
       </div>
 
       {/*
-        The composer sits above the thread rather than beside it: its own
-        background and a stacking order, so a reply that scrolls down to it is
-        covered instead of showing its dividers through the field. Only then is
+        The suggestions sit above the thread rather than beside it: their own
+        background and a stacking order, so a post that scrolls down to them is
+        covered instead of showing its dividers through the panel. Only then is
         the border its own line — without the background it was whatever row
         happened to be underneath.
       */}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-        className="relative z-10 flex shrink-0 items-center gap-[2.2cqw] border-t border-feed-line bg-feed-surface px-[3cqw] py-[2.2cqw]"
-      >
-        <Avatar post={{ author: "You", handle: "@you" }} />
-        <textarea
-          id={COMPOSER_ID}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            // Enter posts, shift+Enter breaks the line — a textarea does not
-            // submit its form on its own.
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submit();
-            }
-          }}
-          rows={1}
-          // The bound the payload enforces anyway. Without it the player types
-          // past it and the tail disappears on the way out with no explanation.
-          maxLength={MAX_TWEET_LENGTH}
-          aria-label="Post your reply"
-          placeholder="Post your reply"
-          className="min-w-0 flex-1 resize-none bg-transparent text-[2.8cqw] leading-snug placeholder:text-feed-muted focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={!draft.trim()}
-          className="shrink-0 rounded-full bg-feed-accent px-[3.6cqw] py-[1.3cqw] text-[2.6cqw] font-bold text-white hover:brightness-95 disabled:opacity-50"
-        >
-          Reply
-        </button>
-      </form>
+      <div className="relative z-10 shrink-0 border-t border-feed-line bg-feed-surface px-[3cqw] py-[2.2cqw]">
+        <div className="flex items-center gap-[2.2cqw]">
+          <Avatar post={{ author: "You", handle: "@you" }} />
+          <span className="text-[2.4cqw] font-bold text-feed-muted">
+            Post one of these
+          </span>
+        </div>
+        <ul className="mt-[1.8cqw] flex flex-col gap-[1.4cqw]">
+          {suggestions.map((suggestion) => {
+            const mark = MOOD_MARK[suggestion.mood];
+
+            return (
+              <li key={suggestion.id}>
+                <button
+                  type="button"
+                  onClick={() => submit(suggestion)}
+                  // The mood is in the accessible name as a word, because the
+                  // arrows beside it are decoration a screen reader cannot read.
+                  aria-label={`Post "${suggestion.body}" — ${mark.label}`}
+                  className="flex w-full items-center gap-[2cqw] rounded-[2cqw] border border-feed-line px-[2.6cqw] py-[1.6cqw] text-left hover:bg-feed-line/40 focus-visible:outline-2 focus-visible:outline-feed-accent"
+                >
+                  <span
+                    aria-hidden
+                    className="w-[6cqw] shrink-0 text-center text-[2.6cqw] leading-none font-black"
+                    style={{ color: mark.color }}
+                  >
+                    {mark.arrow}
+                  </span>
+                  <span className="min-w-0 flex-1 text-[2.6cqw] leading-snug">
+                    {suggestion.body}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   );
 }

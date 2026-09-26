@@ -23,10 +23,3 @@ export type Candle = z.infer<typeof candleSchema>;
  */
 export type Mood = "dump" | "bearish" | "neutral" | "bullish" | "moon";
 
-/**
- * Why a post carries weight. A reply that answers the player directly moves the
- * price harder than background chatter, so the player can feel their own posts
- * in the chart. The player's tweet itself never moves the price: only what the
- * crowd replies to it does.
- */
-export type ImpulseSource = "ambient" | "reaction";

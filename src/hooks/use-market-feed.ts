@@ -5,8 +5,8 @@ import type { Candle } from "~/lib/market/types";
 
 /**
  * The session's candles as the server computes them. The random walk that used
- * to live here moved to `src/lib/market/series.ts`, because the crowd's replies
- * have to be able to move the same series every client sees.
+ * to live here moved to `src/lib/market/series.ts`, so every client sees the
+ * same series rather than one it walked itself.
  */
 export function useMarketFeed(): Candle[] {
   return useGameState().candles;

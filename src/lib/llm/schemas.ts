@@ -82,8 +82,8 @@ export type Lean = z.infer<typeof leanSchema>["lean"];
 
 /**
  * What the model is actually asked for. `stance` is left out because the model
- * picks it badly — see `personaStance` in src/lib/npc/prompts.ts — so the cast
- * takes it from the archetype and combines the two.
+ * picks it badly: asked for it alongside the prose it defaulted to "bull" for
+ * four personas in a row. A caller supplies the stance and combines the two.
  */
 export const personaDraftSchema = personaSchema.omit({ stance: true });
 

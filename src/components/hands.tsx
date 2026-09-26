@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 
-import { COMPOSER_ID } from "~/components/y-feed";
+import { POST_EVENT } from "~/components/y-feed";
 
 /**
  * One tap, in percentages of the hand image's own height so the throw scales
@@ -19,6 +19,17 @@ const TAP: Keyframe[] = [
 ];
 
 const TAP_MS = 150;
+
+/**
+ * Taps per post, and the gap between them.
+ *
+ * Picking a suggestion is one click, but the fiction is that the player typed the
+ * line — so one post plays a short burst of alternating taps rather than a single
+ * one. Six at 90ms reads as a sentence going in and finishes well before the post
+ * has animated into the thread.
+ */
+const TAPS_PER_POST = 6;
+const TAP_GAP_MS = 90;
 
 export default function Hands() {
   const left = useRef<HTMLImageElement>(null);
@@ -36,27 +47,15 @@ export default function Hands() {
     // on every key.
     let turn = 0;
     const playing = new Map<Element, Animation>();
+    const pending = new Set<ReturnType<typeof setTimeout>>();
 
-    function tap(event: KeyboardEvent) {
-      // The hands answer the Y composer and nothing else: keys pressed anywhere
-      // else on the page are not the player typing into the game. The listener
-      // still sits on the window rather than on the field itself, because the
-      // field belongs to a subtree this component does not own and would go
-      // stale here the moment the feed ever remounts.
-      if (!(event.target instanceof Element)) return;
-      if (event.target.id !== COMPOSER_ID) return;
-
-      // Holding a key repeats it tens of times a second. Those repeats would
-      // restart the animation faster than it can play and turn the tap into a
-      // vibration, so only the initial press counts.
-      if (event.repeat) return;
-
+    function tap() {
       const hand = hands[turn % hands.length];
       turn += 1;
 
-      // A fast typist lands the next key on this hand before its previous tap
-      // has finished. Cancelling keeps one animation per hand instead of
-      // stacking them, so every tap starts from the resting position.
+      // A burst lands the next tap on this hand before its previous one has
+      // finished. Cancelling keeps one animation per hand instead of stacking
+      // them, so every tap starts from the resting position.
       playing.get(hand)?.cancel();
       playing.set(
         hand,
@@ -64,10 +63,24 @@ export default function Hands() {
       );
     }
 
-    window.addEventListener("keydown", tap);
+    // The listener sits on the window rather than on the feed, because the feed
+    // belongs to a subtree this component does not own and a ref into it would go
+    // stale the moment it remounted.
+    function type() {
+      for (let index = 0; index < TAPS_PER_POST; index++) {
+        const timer = setTimeout(() => {
+          pending.delete(timer);
+          tap();
+        }, index * TAP_GAP_MS);
+        pending.add(timer);
+      }
+    }
+
+    window.addEventListener(POST_EVENT, type);
 
     return () => {
-      window.removeEventListener("keydown", tap);
+      window.removeEventListener(POST_EVENT, type);
+      for (const timer of pending) clearTimeout(timer);
       for (const animation of playing.values()) animation.cancel();
     };
   }, []);

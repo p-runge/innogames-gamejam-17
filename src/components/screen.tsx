@@ -4,7 +4,6 @@ import { useMutation } from "@tanstack/react-query";
 
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
-import { useGameState } from "~/components/game-state-provider";
 import Portfolio from "~/components/portfolio";
 import TradeControls from "~/components/trade-controls";
 import YFeed from "~/components/y-feed";
@@ -47,14 +46,13 @@ const SITES = {
 export default function Screen({ className }: { className: string }) {
   const trpc = useTRPC();
   const candles = useMarketFeed();
-  const { replies } = useGameState();
   const { cash, shares, transactions, startingCash, trade } = usePortfolio({
     symbol: SYMBOL,
   });
 
-  // The post is rendered optimistically, so a failure here costs the crowd's
-  // answer and nothing else. Logged rather than surfaced: a game jam round is
-  // more playable with a quiet thread than with an error over the chart.
+  // The post is rendered optimistically, so a failure here costs the broadcast
+  // and nothing else. Logged rather than surfaced: a game jam round is more
+  // playable with a quiet thread than with an error over the chart.
   const sendTweet = useMutation(
     trpc.tweets.sendTweet.mutationOptions({
       onError: (error) => {
@@ -63,7 +61,7 @@ export default function Screen({ className }: { className: string }) {
     }),
   );
 
-  const { posts, post } = useYThread({ replies, publish: sendTweet.mutate });
+  const { posts, post } = useYThread({ publish: sendTweet.mutate });
 
   const latest = candles.at(-1);
   // Orders fill at the forming candle's close, which is the live price.
@@ -89,7 +87,7 @@ export default function Screen({ className }: { className: string }) {
       >
         <YFeed
           posts={posts}
-          onPost={(body) => post(body, now)}
+          onPost={(suggestion) => post(suggestion, now)}
           className="h-full w-full"
         />
       </BrowserFrame>

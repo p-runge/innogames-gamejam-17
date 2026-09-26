@@ -8,10 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "llm:eval": "node tools/llm-eval/run.ts",
-    "llm:moods": "node tools/llm-eval/mood-probe.ts",
-    "llm:lean": "node tools/llm-eval/lean-check.ts"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@formkit/auto-animate": "^0.10.0",

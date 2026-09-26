@@ -8,18 +8,23 @@ import {
 } from "./bus";
 import type { GameEvent } from "./types";
 
-function tweet(message: string): GameEvent {
-  return { type: "tweet", payload: { username: "gamejam", message } };
+/**
+ * A tweet event tagged with `label`, which stands in for whatever the post was.
+ * The bus does not read the payload, so these tests only need each event to be
+ * tellable from the next.
+ */
+function tweet(label: string): GameEvent {
+  return { type: "tweet", payload: { username: "gamejam", suggestionId: label } };
 }
 
 /**
- * The message of a published tweet. The bus carries price events too, so the
- * event type has to be narrowed before a payload field can be read; a cast would
- * hide the day a test is handed the wrong event kind.
+ * The label of a published tweet. The bus carries price events too, so the event
+ * type has to be narrowed before a payload field can be read; a cast would hide
+ * the day a test is handed the wrong event kind.
  */
 function messageOf(published?: { event: GameEvent }): string | undefined {
   const { event } = published ?? {};
-  return event?.type === "tweet" ? event.payload.message : undefined;
+  return event?.type === "tweet" ? event.payload.suggestionId : undefined;
 }
 
 /** Collect `count` events, then stop so the generator terminates. */

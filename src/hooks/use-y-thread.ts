@@ -2,35 +2,31 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import type { ReplyPayload, TweetPayload } from "~/lib/events/types";
+import type { TweetPayload } from "~/lib/events/types";
+import type { Suggestion } from "~/lib/feed/suggestions";
 import { buildThread, type FeedPost } from "~/lib/feed/thread";
-import { toTweetPayload } from "~/lib/feed/tweet";
 
 export type YPost = FeedPost;
 
 /**
- * The Y thread: the crowd's replies as they arrive from the server, with the
- * player's own posts merged in.
+ * The Y thread: the opening post with the player's own posts under it.
  *
- * The two sources are kept apart on purpose. Crowd replies come over the event
- * bus and are the same for every browser; the player's posts are local and
- * optimistic, so a post appears the moment it is typed rather than after a
- * round trip. `mergePosts` puts both in clock order for rendering.
+ * The player's posts are local and optimistic, so a post appears the moment it is
+ * picked rather than after a round trip. Only the suggestion's id goes to the
+ * server, which resolves the body and the mood from the same pool this renders
+ * from — the row the player reads and the price move it causes come from one
+ * authored line.
  *
- * `replies` and `publish` are passed in rather than reached for, so the hook
- * holds neither a context nor a transport of its own. That is what lets the
- * posting path be tested without standing up a provider and a tRPC client
- * around it — the local row and the call to the server are one step here, and
- * nothing else guarantees they stay that way.
+ * `publish` is passed in rather than reached for, so the hook holds neither a
+ * context nor a transport of its own. That is what lets the posting path be
+ * tested without standing up a provider and a tRPC client around it.
  */
 export function useYThread({
-  replies,
   publish,
   author = "You",
   handle = "@you",
 }: {
-  replies: ReplyPayload[];
-  /** Hands the post to the server, where the crowd picks it up. */
+  /** Hands the post to the server, which applies its mood to the price. */
   publish: (payload: TweetPayload) => void;
   author?: string;
   handle?: string;
@@ -42,26 +38,20 @@ export function useYThread({
   const nextId = useRef(0);
 
   const post = useCallback(
-    (body: string, at: number) => {
-      // One payload feeds both the thread and the server, so the row the player
-      // reads is the text the crowd was given — a body over the length bound
-      // would otherwise render in full and reach the model clipped.
-      const payload = toTweetPayload(author, body);
-      if (payload === null) return;
-
+    (suggestion: Suggestion, at: number) => {
       const id = `mine-${nextId.current++}`;
 
       setMine((previous) => [
         ...previous,
-        { id, author, handle, body: payload.message, at, mine: true },
+        { id, author, handle, body: suggestion.body, at, mine: true },
       ]);
 
-      publish(payload);
+      publish({ username: author, suggestionId: suggestion.id });
     },
     [author, handle, publish],
   );
 
-  const posts = useMemo(() => buildThread(replies, mine), [replies, mine]);
+  const posts = useMemo(() => buildThread(mine), [mine]);
 
   return { posts, post };
 }

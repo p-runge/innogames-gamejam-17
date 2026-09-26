@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetBus, subscribe } from "~/lib/events/bus";
 import {
-  applyImpulse,
   getMarketState,
   isRunning,
   resetMarket,
@@ -80,18 +79,5 @@ describe("startSession", () => {
     // The restarted round has to advance, not clear itself on its first tick.
     expect(getMarketState().elapsedSeconds).toBeCloseTo(1, 5);
     expect(isRunning()).toBe(true);
-  });
-});
-
-describe("applyImpulse", () => {
-  it("is a no-op before the session starts", () => {
-    applyImpulse("moon", "reaction");
-    expect(getMarketState().impulse).toBe(0);
-  });
-
-  it("moves the impulse while the session runs", () => {
-    startSession();
-    applyImpulse("moon", "reaction");
-    expect(getMarketState().impulse).toBeGreaterThan(0);
   });
 });

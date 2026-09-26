@@ -8,7 +8,7 @@ import {
   TICK_SECONDS,
   type MarketState,
 } from "./series";
-import type { ImpulseSource, Mood } from "./types";
+import type { Mood } from "./types";
 
 type EngineState = {
   market: MarketState;
@@ -46,10 +46,8 @@ export function isRunning(): boolean {
  * a second browser calls this too, and a second ticker would run the same world
  * at twice the speed without reporting anything wrong.
  *
- * `onClose` fires once when the session clock passes the close. The engine
- * cannot reach the crowd or the reply queue itself without market code
- * depending on npc code, and the round has to be torn down from somewhere: left
- * running, the crowd keeps generating and posting into a finished round forever.
+ * `onClose` fires once when the session clock passes the close, so the round can
+ * be torn down from the one module that owns its lifecycle rather than from here.
  */
 export function startSession(onClose?: () => void): void {
   const engine = getEngine();
@@ -96,10 +94,10 @@ export function stopSession(): void {
  * series nobody is watching, and an impulse arriving after the bell is dropped
  * rather than held over into the next round.
  */
-export function applyImpulse(mood: Mood, source: ImpulseSource): void {
+export function applyImpulse(mood: Mood): void {
   const engine = getEngine();
   if (!engine.timer) return;
-  engine.market = addImpulse(engine.market, mood, source);
+  engine.market = addImpulse(engine.market, mood);
 }
 
 /** Test-only: drop all state so each test starts from a fresh session. */

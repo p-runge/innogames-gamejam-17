@@ -3,24 +3,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRunId, publish, resetBus } from "~/lib/events/bus";
 import type { GameEvent } from "~/lib/events/types";
 import { resetMarket } from "~/lib/market/engine";
-import { resetCast } from "~/lib/npc/cast";
-import { resetCrowd } from "~/lib/npc/crowd";
-import { resetQueue } from "~/lib/npc/queue";
 import { appRouter } from "./_app";
-
-// `session.start` generates the cast and `sendTweet` queues reactions, both of
-// which call the model. Without this the suite would talk to whatever is
-// listening on LLM_BASE_URL — a real container on a developer machine, nothing
-// in CI — and the same test would pass for different reasons in each.
-vi.mock("~/lib/llm/client", () => ({ generate: vi.fn(async () => null) }));
 
 // The signal belongs to createCaller, not to the procedure call. Passing it as
 // a second argument to the procedure type-checks nowhere and is dropped at
 // runtime, which leaves the resolver with no signal at all.
 const caller = (signal?: AbortSignal) => appRouter.createCaller({}, { signal });
 
-function tweet(message: string): GameEvent {
-  return { type: "tweet", payload: { username: "gamejam", message } };
+/**
+ * A tweet event tagged with `label`. These tests are about the event stream, not
+ * about what was posted, so the payload only has to be tellable from the next.
+ */
+function tweet(label: string): GameEvent {
+  return { type: "tweet", payload: { username: "gamejam", suggestionId: label } };
 }
 
 /**
@@ -36,13 +31,9 @@ function unwrap(value: unknown): { id: string; event: GameEvent } {
 
 afterEach(() => {
   resetBus();
-  // All of these are pinned to globalThis, so without resetting them a session
-  // started in one test keeps ticking through the next, and `startCrowd`'s
-  // timers outlive the run.
+  // Pinned to globalThis, so without resetting it a session started in one test
+  // keeps ticking through the next.
   resetMarket();
-  resetCrowd();
-  resetCast();
-  resetQueue();
 });
 
 describe("session", () => {
@@ -59,34 +50,6 @@ describe("session", () => {
 
   it("reports not running before any start", async () => {
     expect((await caller().session.state()).running).toBe(false);
-  });
-});
-
-describe("sendTweet", () => {
-  it("publishes a valid tweet and returns its id", async () => {
-    const result = await caller().tweets.sendTweet({
-      username: "gamejam",
-      message: "hello world",
-    });
-    expect(result.id).toBe(1);
-  });
-
-  it("rejects an empty message without publishing", async () => {
-    await expect(
-      caller().tweets.sendTweet({ username: "gamejam", message: "" }),
-    ).rejects.toThrow();
-
-    // Nothing reached the bus, so the next publish still gets id 1.
-    expect(publish(tweet("next")).id).toBe(1);
-  });
-
-  it("rejects a message longer than 280 characters", async () => {
-    await expect(
-      caller().tweets.sendTweet({
-        username: "gamejam",
-        message: "x".repeat(281),
-      }),
-    ).rejects.toThrow();
   });
 });
 

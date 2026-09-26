@@ -1,23 +1,17 @@
 import { getMarketState, isRunning } from "~/lib/market/engine";
-import { getCast } from "~/lib/npc/cast";
-import { replyHistory } from "~/lib/npc/queue";
 import { startRound } from "~/lib/round";
 import { baseProcedure, router } from "../init";
 
 export const sessionRouter = router({
   /**
    * Start the round. Safe to call from every client that loads: the engine
-   * ignores a start while a session is already running, and the cast is cached,
-   * so the second browser joins the same world instead of building its own.
-   *
-   * Generating ten personas takes seconds per persona on a CPU-bound model.
-   * That cost is paid here, while the player is still looking at a loading
-   * screen, rather than during the round.
+   * ignores a start while a session is already running, so the second browser
+   * joins the same world instead of building its own.
    */
-  start: baseProcedure.mutation(async () => {
-    await startRound();
+  start: baseProcedure.mutation(() => {
+    startRound();
     const { candles, closed } = getMarketState();
-    return { candles, closed, cast: getCast() };
+    return { candles, closed };
   }),
 
   /**
@@ -27,14 +21,6 @@ export const sessionRouter = router({
    */
   state: baseProcedure.query(() => {
     const { candles, closed } = getMarketState();
-    return {
-      candles,
-      closed,
-      running: isRunning(),
-      cast: getCast(),
-      // The thread so far. A client that joins or reloads mid-round rebuilds
-      // the feed from this; the subscription carries it from there.
-      replies: replyHistory(),
-    };
+    return { candles, closed, running: isRunning() };
   }),
 });
