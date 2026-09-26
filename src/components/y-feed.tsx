@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
@@ -153,6 +154,22 @@ export default function YFeed({
   const [root, ...replies] = posts;
 
   const threadRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const [animateRef, enableAnimation] = useAutoAnimate<HTMLUListElement>();
+  const listElement = useRef<HTMLUListElement>(null);
+  /*
+    useAutoAnimate hands back a ref callback, and the ResizeObserver below needs
+    the node too, so the list gets one callback that feeds both.
+  */
+  const setListRef = useCallback(
+    (node: HTMLUListElement | null) => {
+      listElement.current = node;
+      animateRef(node);
+    },
+    [animateRef],
+  );
+
   /*
     Set on submit and consumed by the effect below, because the new post is not
     in the DOM yet when submit runs — it arrives with the next render. A ref
@@ -160,16 +177,87 @@ export default function YFeed({
   */
   const followOwnPost = useRef(false);
 
+  /*
+    Whether the bottom of the thread is in view. A ref and not state on purpose:
+    this changes on every scroll, and as state it would re-render the whole feed
+    each time — and setting it from an observer callback is the setState-in-effect
+    shape the project's lint rules refuse.
+  */
+  const atBottom = useRef(true);
+
+  // Moving the container's own scrollTop rather than calling scrollIntoView,
+  // which walks up and scrolls ancestors too — on a screen this one is rotated
+  // inside, that would shift the whole laptop.
+  const scrollToEnd = useCallback(() => {
+    const thread = threadRef.current;
+    if (thread) thread.scrollTop = thread.scrollHeight;
+  }, []);
+
+  /*
+    Follows the end of the thread while the reader is already there, and leaves
+    them alone when they have scrolled up to read. An observer rather than
+    measuring scrollTop against scrollHeight on every scroll event: no forced
+    layout, and `rootMargin` expresses "near enough to the bottom" without
+    inventing a pixel threshold.
+  */
   useEffect(() => {
-    if (!followOwnPost.current) return;
+    const thread = threadRef.current;
+    const end = endRef.current;
+    if (!thread || !end) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        atBottom.current = entry.isIntersecting;
+      },
+      { root: thread, rootMargin: "0px 0px 48px 0px" },
+    );
+
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, []);
+
+  /*
+    Keeps the end in view while a new post animates in. auto-animate grows the
+    arriving entry from zero to its full height, so a single scroll at render
+    time aims at a scrollHeight that does not include it yet and lands short.
+    A ResizeObserver follows the height instead, which stays correct if the
+    animation's duration ever changes.
+  */
+  useEffect(() => {
+    const list = listElement.current;
+    if (!list) return;
+
+    const observer = new ResizeObserver(() => {
+      if (atBottom.current || followOwnPost.current) scrollToEnd();
+    });
+
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [scrollToEnd]);
+
+  useEffect(() => {
+    const own = followOwnPost.current;
     followOwnPost.current = false;
 
-    const thread = threadRef.current;
-    // Moving the container's own scrollTop rather than calling scrollIntoView,
-    // which walks up and scrolls ancestors too — on a screen this one is
-    // rotated inside, that would shift the whole laptop.
-    if (thread) thread.scrollTop = thread.scrollHeight;
-  }, [posts]);
+    // The player's own post always pulls the thread down; a reply from the crowd
+    // only does so if the reader was at the bottom anyway.
+    if (own || atBottom.current) scrollToEnd();
+  }, [posts, scrollToEnd]);
+
+  /*
+    Animation stays off until the thread has replies in it, and the comparison is
+    against 1 rather than 0 because the seeded opening post is always there.
+
+    The feed mounts with that post alone and the server's history lands a render
+    later. This effect runs after the first render and before that second one, so
+    the batch arrives with animation still off — otherwise every post already in
+    the round flies in one after another on load, twenty of them after a
+    mid-round reload. The cost is that the very first reply of a fresh round
+    appears without animating, which nobody is watching for.
+  */
+  useEffect(() => {
+    enableAnimation(posts.length > 1);
+  }, [enableAnimation, posts.length]);
 
   const submit = () => {
     if (!draft.trim()) return;
@@ -206,13 +294,19 @@ export default function YFeed({
         className="min-h-0 flex-1 overflow-y-auto scroll-smooth motion-reduce:scroll-auto"
       >
         {root && <RootPost post={root} />}
-        <ul>
+        <ul ref={setListRef}>
           {replies.map((reply) => (
             <li key={reply.id} className="border-b border-feed-line">
               <Reply post={reply} />
             </li>
           ))}
         </ul>
+        {/*
+          The sentinel the IntersectionObserver above watches. It marks where the
+          thread ends, which is what "the reader is at the bottom" means; a
+          zero-height element cannot intersect, so it needs the pixel.
+        */}
+        <div ref={endRef} aria-hidden className="h-px" />
       </div>
 
       <form

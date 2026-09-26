@@ -12,6 +12,7 @@
     "llm:eval": "node tools/llm-eval/run.ts"
   },
   "dependencies": {
+    "@formkit/auto-animate": "^0.10.0",
     "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-query": "^5.103.2",
     "@trpc/client": "11.19.0",
