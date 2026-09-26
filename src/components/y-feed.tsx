@@ -30,6 +30,14 @@ function Avatar({ post }: { post: Pick<YPost, "author" | "handle"> }) {
   );
 }
 
+/**
+ * The composer's id. The hands overlay sits outside the screen, in a different
+ * subtree, and finds this field by id rather than by a callback threaded down
+ * through the panels — a decorative animation should not show up in the props
+ * of everything between it and the keyboard.
+ */
+export const COMPOSER_ID = "y-composer";
+
 const compact = new Intl.NumberFormat("en", { notation: "compact" });
 
 const ICONS = {
@@ -216,6 +224,7 @@ export default function YFeed({
       >
         <Avatar post={{ author: "You", handle: "@you" }} />
         <textarea
+          id={COMPOSER_ID}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {

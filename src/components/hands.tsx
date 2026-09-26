@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 
+import { COMPOSER_ID } from "~/components/y-feed";
+
 /**
  * One tap, in percentages of the hand image's own height so the throw scales
  * with the photo. The hand overshoots on the way back up rather than settling
@@ -36,6 +38,14 @@ export default function Hands() {
     const playing = new Map<Element, Animation>();
 
     function tap(event: KeyboardEvent) {
+      // The hands answer the Y composer and nothing else: keys pressed anywhere
+      // else on the page are not the player typing into the game. The listener
+      // still sits on the window rather than on the field itself, because the
+      // field belongs to a subtree this component does not own and would go
+      // stale here the moment the feed ever remounts.
+      if (!(event.target instanceof Element)) return;
+      if (event.target.id !== COMPOSER_ID) return;
+
       // Holding a key repeats it tens of times a second. Those repeats would
       // restart the animation faster than it can play and turn the tap into a
       // vibration, so only the initial press counts.
