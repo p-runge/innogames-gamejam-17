@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetBus } from "~/lib/events/bus";
+import { REPLY_SYSTEM } from "~/lib/npc/prompts";
 import {
   getMarketState,
   resetMarket,
@@ -143,7 +144,12 @@ describe("reactToTweet", () => {
 
     await reactToTweet({ username: "you", message: "bought the dip at 1180" });
 
-    const [call] = mocked.mock.calls;
+    // Selected by system prompt rather than by position: a reaction is preceded
+    // by the request that reads the player's direction, which is not a reply and
+    // carries none of the voice.
+    const [call] = mocked.mock.calls.filter(
+      (candidate) => candidate[0].system === REPLY_SYSTEM,
+    );
     // Everything that shapes the voice: who they are, what they think, how they
     // talk.
     expect(call[0].prompt).toContain("Exit Liquidity");
@@ -176,5 +182,43 @@ describe("reactToTweet", () => {
     const published = publishNextReply();
 
     expect(published?.source).toBe("reaction");
+  });
+});
+
+describe("reactToTweet and the player's lean", () => {
+  /** Every prompt `generate` was asked for, in call order. */
+  function prompts(): string[] {
+    return mocked.mock.calls.map((call) => call[0].prompt);
+  }
+
+  it("reads which way the post argues before answering it", async () => {
+    await withCast();
+    mocked.mockResolvedValueOnce({ lean: "down" }).mockResolvedValue(REPLY);
+    startSession();
+
+    await reactToTweet({ username: "you", message: "it is going to zero" });
+
+    // The classification comes first and is asked about the post itself.
+    expect(prompts()[0]).toContain("it is going to zero");
+    // Every reply then knows it, whatever the persona's stance.
+    const replyPrompts = prompts().slice(1);
+    expect(replyPrompts.length).toBeGreaterThan(0);
+    for (const prompt of replyPrompts) {
+      expect(prompt).toContain("Their post argues the price is going down");
+    }
+  });
+
+  it("still answers when the lean cannot be read", async () => {
+    await withCast();
+    mocked.mockResolvedValueOnce(null).mockResolvedValue(REPLY);
+    startSession();
+
+    await reactToTweet({ username: "you", message: "anything happening" });
+
+    const replyPrompts = prompts().slice(1);
+    expect(replyPrompts.length).toBeGreaterThan(0);
+    for (const prompt of replyPrompts) {
+      expect(prompt).not.toContain("Their post argues");
+    }
   });
 });

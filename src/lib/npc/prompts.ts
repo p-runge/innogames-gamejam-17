@@ -101,14 +101,94 @@ export function personaStance(index: number): PersonaStance {
  * meant to be unreadable, and pinning it would leave the index tracking the
  * bull/bear count exactly.
  */
-const STANCE_MOODS: Record<PersonaStance, Mood[]> = {
-  bull: ["bullish", "moon"],
-  bear: ["bearish", "dump"],
-  chaos: ["dump", "bearish", "neutral", "bullish", "moon"],
+type StanceMoods = {
+  /** Every mood this stance may carry. */
+  moods: Mood[];
+  /**
+   * The two a reaction picks between, mild when the player argues against this
+   * account and strong when the player argues its way. Null for chaos, which
+   * keeps the full range and is not steerable by anyone.
+   *
+   * This is the player's whole lever. The stance fixes the sign, so a post can
+   * never flip the crowd; it decides how hard the accounts that already agree
+   * lean in, which is worth roughly a 2.7x swing per reply. It is also what
+   * makes 'moon' reachable at all — nothing else ever pushes a bull to its
+   * extreme, and it went unused across 60 measured generations.
+   */
+  intensity: { mild: Mood; strong: Mood } | null;
+};
+
+const STANCE_MOODS: Record<PersonaStance, StanceMoods> = {
+  bull: {
+    moods: ["bullish", "moon"],
+    intensity: { mild: "bullish", strong: "moon" },
+  },
+  bear: {
+    moods: ["bearish", "dump"],
+    intensity: { mild: "bearish", strong: "dump" },
+  },
+  chaos: {
+    moods: ["dump", "bearish", "neutral", "bullish", "moon"],
+    intensity: null,
+  },
 };
 
 export function moodsFor(stance: PersonaStance): Mood[] {
-  return STANCE_MOODS[stance];
+  return STANCE_MOODS[stance].moods;
+}
+
+export function moodIntensity(stance: PersonaStance) {
+  return STANCE_MOODS[stance].intensity;
+}
+
+/** Which way the player's post argues the price is going. */
+export type PlayerLean = "up" | "down";
+
+/**
+ * Reads the direction out of one post, and nothing else.
+ *
+ * Deliberately not in the crowd's register: this request is a judgement, not a
+ * performance, and the furious-retail framing pulled the answer toward "down"
+ * the way it pulled the reply moods there.
+ */
+export const LEAN_SYSTEM = [
+  "You read one post from a stock-trading social network and judge which way it",
+  "argues the price of INNO is going.",
+  "'up' means the post is optimistic, defends the company, or is buying.",
+  "'down' means the post is pessimistic, attacks the company, or is selling.",
+  "Judge the post in front of you on its own terms. Answer with the direction",
+  "only, and nothing else.",
+].join(" ");
+
+export function leanPrompt(tweet: TweetPayload): string {
+  return `Which way does this post argue the price is going?\n\n"${tweet.message}"`;
+}
+
+/**
+ * The mood one account carries in answer to a post that argues `lean`.
+ *
+ * Decided here rather than asked for. Told to work it out — "if their post
+ * pushes the market the same way you already lean, take your stronger mood" —
+ * qwen3.5:4b got it backwards: across ten replies to a strongly bullish post
+ * the bulls returned 'moon' not once, while a strongly bearish post drew it
+ * twice. That is the comparison itself failing, and it is the same lesson as
+ * `personaStance`: hand a small model one unambiguous label, never a
+ * two-step judgement.
+ *
+ * Null for chaos, which keeps its full range whatever anyone posts.
+ */
+export function moodForReaction(
+  stance: PersonaStance,
+  lean: PlayerLean,
+): Mood | null {
+  const pair = moodIntensity(stance);
+  if (pair === null) return null;
+
+  const agrees =
+    (stance === "bull" && lean === "up") ||
+    (stance === "bear" && lean === "down");
+
+  return agrees ? pair.strong : pair.mild;
 }
 
 export function personaPrompt(index: number): string {
@@ -149,11 +229,26 @@ export const REPLY_SYSTEM = [
   "given.",
 ].join(" ");
 
-function voice(persona: Persona): string {
+/**
+ * The mood half of the voice: exactly one instruction, never two.
+ *
+ * A resolved mood replaces the range rather than joining it. Given both, a small
+ * model answers with the first item of the list and the resolved mood never
+ * lands — measured twice on qwen3.5:4b, where bulls told "your mood is 'moon'"
+ * returned 'bullish' on all ten replies.
+ */
+function moodRule(persona: Persona, resolved: Mood | null): string {
+  if (resolved !== null) {
+    return `Your mood is '${resolved}' — say it however you like, but that is your position.`;
+  }
+  return `Your mood must be one of: ${moodsFor(persona.stance).join(", ")}.`;
+}
+
+function voice(persona: Persona, resolved: Mood | null = null): string {
   // The handle is deliberately left out. Given it, the model copies it into
   // the opening of the reply even when told not to, and the account ends up
   // addressing itself. Everything that shapes the voice is here without it.
-  return `You are ${persona.name}. ${persona.bio}. You are ${persona.stance === "chaos" ? "unpredictable about the market" : persona.stance === "bull" ? "convinced the price is going up" : "convinced the price is going down"}. Your habit: ${persona.tic}. That bio is what you are angry about — write from it, not from what anyone else is angry about. Your mood must be one of: ${moodsFor(persona.stance).join(", ")}.`;
+  return `You are ${persona.name}. ${persona.bio}. You are ${persona.stance === "chaos" ? "unpredictable about the market" : persona.stance === "bull" ? "convinced the price is going up" : "convinced the price is going down"}. Your habit: ${persona.tic}. That bio is what you are angry about — write from it, not from what anyone else is angry about. ${moodRule(persona, resolved)}`;
 }
 
 /**
@@ -178,14 +273,28 @@ export function ambientPrompt(
   return `${voice(persona)}\n\nMarket context: ${context}${avoid(recent)}\n\nPost one reply about the market right now.`;
 }
 
+/**
+ * What the player argued, so the reply answers the post rather than the market.
+ *
+ * The mood itself is not repeated here — `voice` carries it, and a second
+ * mention is the competing instruction that made the first one lose.
+ */
+function argued(lean: PlayerLean | undefined): string {
+  if (lean === undefined) return "";
+  return ` Their post argues the price is going ${lean}.`;
+}
+
 export function reactionPrompt(
   persona: Persona,
   context: string,
   tweet: TweetPayload,
   recent: string[] = [],
+  lean?: PlayerLean,
 ): string {
   // The poster is named without an @ on purpose. With one, the model copied a
   // handle into the opening of the reply — usually its own, which reads as an
   // account answering itself.
-  return `${voice(persona)}\n\nMarket context: ${context}${avoid(recent)}\n\nSomeone called ${tweet.username} just posted: "${tweet.message}"\n\nWrite your reply to them.`;
+  const resolved = lean === undefined ? null : moodForReaction(persona.stance, lean);
+
+  return `${voice(persona, resolved)}\n\nMarket context: ${context}${avoid(recent)}\n\nSomeone called ${tweet.username} just posted: "${tweet.message}"\n\nWrite your reply to them.${argued(lean)}`;
 }

@@ -64,6 +64,23 @@ export const replySchema = z.object({
 });
 
 /**
+ * Which way one post argues the price is going.
+ *
+ * Two labels and no "unclear": a third option is the one a small model reaches
+ * for whenever a post is not a slogan, and it would mean the crowd ignores most
+ * of what the player writes. A vague post lands on whichever side the model
+ * reads into it, which is a fair outcome for a vague post.
+ *
+ * One field on purpose. The direction is the only thing wanted here, and the
+ * whole request stays short enough to answer in a couple of tokens.
+ */
+export const leanSchema = z.object({
+  lean: z.enum(["up", "down"]),
+});
+
+export type Lean = z.infer<typeof leanSchema>["lean"];
+
+/**
  * What the model is actually asked for. `stance` is left out because the model
  * picks it badly — see `personaStance` in src/lib/npc/prompts.ts — so the cast
  * takes it from the archetype and combines the two.

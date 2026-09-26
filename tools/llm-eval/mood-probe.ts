@@ -36,11 +36,13 @@ const CONTEXT = "INNO has barely moved for several minutes.";
 const TWEETS = [
   {
     label: "player is strongly positive",
+    lean: "up",
     message:
       "INNO just landed a huge partnership, earnings look fantastic. This is going way up, I am loading the boat.",
   },
   {
     label: "player is strongly negative",
+    lean: "down",
     message:
       "INNO is finished, the numbers are fake and the CEO is lying. Get out now before it goes to zero.",
   },
@@ -103,6 +105,7 @@ async function main() {
         CONTEXT,
         { username: "You", message: tweet.message },
         [],
+        tweet.lean,
       );
       try {
         const reply = await ask(prompt);

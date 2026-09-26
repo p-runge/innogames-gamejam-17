@@ -2,10 +2,17 @@ import "server-only";
 
 import type { TweetPayload } from "~/lib/events/types";
 import { generate } from "~/lib/llm/client";
-import { replySchema, type Persona } from "~/lib/llm/schemas";
+import { leanSchema, replySchema, type Persona } from "~/lib/llm/schemas";
 import { getMarketState } from "~/lib/market/engine";
 import { generateCast, getCast } from "./cast";
-import { ambientPrompt, reactionPrompt, REPLY_SYSTEM } from "./prompts";
+import {
+  ambientPrompt,
+  leanPrompt,
+  LEAN_SYSTEM,
+  reactionPrompt,
+  REPLY_SYSTEM,
+  type PlayerLean,
+} from "./prompts";
 import { enqueueReply, publishNextReply, recentBodies } from "./queue";
 import { templatedReply, type PriceDirection } from "./templates";
 
@@ -156,17 +163,55 @@ export async function runAmbientJob(): Promise<void> {
   );
 }
 
+/**
+ * Which way the player argued, as the crowd will read it.
+ *
+ * One short request ahead of the replies rather than a judgement folded into
+ * each of them. Asked to work out for itself whether a post agreed with its own
+ * stance, qwen3.5:4b got it backwards; given the direction outright it complied
+ * on every reply. `maxTokens` is tiny because the answer is one word, which is
+ * what keeps this off the latency the player actually feels.
+ *
+ * Returns null when the model cannot answer, and the replies then fall back to
+ * the account's own range — a quieter tweet, not a broken one.
+ */
+async function readLean(tweet: TweetPayload): Promise<PlayerLean | null> {
+  const crowd = getCrowd();
+  // Held against the same ceiling as the replies. This request sits in front of
+  // every reaction, so left uncounted it is the one thing a burst of tweets can
+  // open without limit — twenty posts would put twenty requests on four cores
+  // and slow down the replies they were meant to steer.
+  if (crowd.activeJobs >= MAX_CONCURRENT_JOBS) return null;
+
+  crowd.activeJobs++;
+  try {
+    const judged = await generate({
+      system: LEAN_SYSTEM,
+      prompt: leanPrompt(tweet),
+      schema: leanSchema,
+      // A judgement, not a voice: sampling wide here buys nothing but noise.
+      temperature: 0.2,
+      maxTokens: 16,
+    });
+
+    return judged?.lean ?? null;
+  } finally {
+    crowd.activeJobs--;
+  }
+}
+
 /** Two personas answer the player. Nothing reaches the market until published. */
 export async function reactToTweet(tweet: TweetPayload): Promise<void> {
   await generateCast();
   const context = priceContext();
   const recent = recentBodies();
+  const lean = await readLean(tweet);
 
   await Promise.all(
     pickPersonas(REACTION_FANOUT).map((persona) =>
       runJob(
         persona,
-        reactionPrompt(persona, context, tweet, recent),
+        reactionPrompt(persona, context, tweet, recent, lean ?? undefined),
         "reaction",
       ),
     ),
