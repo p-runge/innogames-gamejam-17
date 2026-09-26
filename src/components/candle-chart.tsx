@@ -5,16 +5,12 @@ import ReactECharts from "echarts-for-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "~/lib/cn";
+import type { Candle } from "~/lib/market/types";
 import { formatClock, sessionSlots } from "~/lib/trading-session";
 
-export type Candle = {
-  /** The candle's slot on the in-game clock, in minutes since midnight. */
-  t: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-};
+// Re-exported so the panels keep importing Candle from the component they hand
+// it to, while the shape itself lives with the market code that produces it.
+export type { Candle };
 
 /*
   ECharts paints into SVG with its own style objects, so the marks cannot wear
