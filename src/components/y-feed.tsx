@@ -138,8 +138,14 @@ function Reply({ post }: { post: YPost }) {
 
 /**
  * Y — the thread the trading day is arguing in. The opening post sits at the
- * top, everything after it is a reply, and the player's own posts join the same
- * list so they read as part of the conversation rather than a separate log.
+ * top as the thread's subject, everything after it is a reply, and the player's
+ * own posts join the same list so they read as part of the conversation rather
+ * than a separate log.
+ *
+ * Replies render newest first, directly under the opening post, so an arriving
+ * post lands where the reader is already looking instead of off the bottom edge.
+ * `posts` stays in clock order — the reversal is a rendering decision and the
+ * thread that feeds it keeps reading chronologically.
  */
 export default function YFeed({
   posts,
@@ -151,10 +157,13 @@ export default function YFeed({
   className?: string;
 }) {
   const [draft, setDraft] = useState("");
-  const [root, ...replies] = posts;
+  // The rest element is a fresh array, so reversing it in place leaves `posts`
+  // alone.
+  const [root, ...rest] = posts;
+  const replies = rest.reverse();
 
   const threadRef = useRef<HTMLDivElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const startRef = useRef<HTMLDivElement>(null);
 
   const [animateRef, enableAnimation] = useAutoAnimate<HTMLUListElement>();
   const listElement = useRef<HTMLUListElement>(null);
@@ -178,71 +187,72 @@ export default function YFeed({
   const followOwnPost = useRef(false);
 
   /*
-    Whether the bottom of the thread is in view. A ref and not state on purpose:
-    this changes on every scroll, and as state it would re-render the whole feed
-    each time — and setting it from an observer callback is the setState-in-effect
-    shape the project's lint rules refuse.
+    Whether the head of the thread — where new posts arrive — is in view. A ref
+    and not state on purpose: this changes on every scroll, and as state it would
+    re-render the whole feed each time — and setting it from an observer callback
+    is the setState-in-effect shape the project's lint rules refuse.
   */
-  const atBottom = useRef(true);
+  const atTop = useRef(true);
 
   // Moving the container's own scrollTop rather than calling scrollIntoView,
   // which walks up and scrolls ancestors too — on a screen this one is rotated
   // inside, that would shift the whole laptop.
-  const scrollToEnd = useCallback(() => {
+  const scrollToStart = useCallback(() => {
     const thread = threadRef.current;
-    if (thread) thread.scrollTop = thread.scrollHeight;
+    if (thread) thread.scrollTop = 0;
   }, []);
 
   /*
-    Follows the end of the thread while the reader is already there, and leaves
-    them alone when they have scrolled up to read. An observer rather than
-    measuring scrollTop against scrollHeight on every scroll event: no forced
-    layout, and `rootMargin` expresses "near enough to the bottom" without
-    inventing a pixel threshold.
+    Follows the head of the thread while the reader is already there, and leaves
+    them alone when they have scrolled down to read older posts. An observer
+    rather than reading scrollTop on every scroll event: no forced layout, and
+    `rootMargin` expresses "near enough to the top" without inventing a pixel
+    threshold.
   */
   useEffect(() => {
     const thread = threadRef.current;
-    const end = endRef.current;
-    if (!thread || !end) return;
+    const start = startRef.current;
+    if (!thread || !start) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        atBottom.current = entry.isIntersecting;
+        atTop.current = entry.isIntersecting;
       },
-      { root: thread, rootMargin: "0px 0px 48px 0px" },
+      { root: thread, rootMargin: "48px 0px 0px 0px" },
     );
 
-    observer.observe(end);
+    observer.observe(start);
     return () => observer.disconnect();
   }, []);
 
   /*
-    Keeps the end in view while a new post animates in. auto-animate grows the
-    arriving entry from zero to its full height, so a single scroll at render
-    time aims at a scrollHeight that does not include it yet and lands short.
-    A ResizeObserver follows the height instead, which stays correct if the
-    animation's duration ever changes.
+    Holds the view at the head of the thread while a new post animates in.
+    auto-animate grows the arriving entry from zero to its full height, and that
+    growth happens above everything the reader can see, so the browser's own
+    scroll anchoring would push the thread down to compensate. A ResizeObserver
+    follows the height and pins it back, which stays correct if the animation's
+    duration ever changes.
   */
   useEffect(() => {
     const list = listElement.current;
     if (!list) return;
 
     const observer = new ResizeObserver(() => {
-      if (atBottom.current || followOwnPost.current) scrollToEnd();
+      if (atTop.current || followOwnPost.current) scrollToStart();
     });
 
     observer.observe(list);
     return () => observer.disconnect();
-  }, [scrollToEnd]);
+  }, [scrollToStart]);
 
   useEffect(() => {
     const own = followOwnPost.current;
     followOwnPost.current = false;
 
-    // The player's own post always pulls the thread down; a reply from the crowd
-    // only does so if the reader was at the bottom anyway.
-    if (own || atBottom.current) scrollToEnd();
-  }, [posts, scrollToEnd]);
+    // The player's own post always pulls the thread back up to it; a reply from
+    // the crowd only does so if the reader was at the top anyway.
+    if (own || atTop.current) scrollToStart();
+  }, [posts, scrollToStart]);
 
   /*
     Animation stays off until the thread has replies in it, and the comparison is
@@ -277,7 +287,8 @@ export default function YFeed({
         className,
       )}
     >
-      <header className="flex items-center gap-[3cqw] border-b border-feed-line px-[3cqw] py-[2.2cqw]">
+      {/* Opaque and stacked for the same reason as the composer below. */}
+      <header className="relative z-10 flex shrink-0 items-center gap-[3cqw] border-b border-feed-line bg-feed-surface px-[3cqw] py-[2.2cqw]">
         <span className="text-[5.5cqw] leading-none font-black text-feed-accent">
           Y
         </span>
@@ -294,27 +305,40 @@ export default function YFeed({
         className="min-h-0 flex-1 overflow-y-auto scroll-smooth motion-reduce:scroll-auto"
       >
         {root && <RootPost post={root} />}
-        <ul ref={setListRef}>
+        {/*
+          The sentinel the IntersectionObserver above watches. It marks where the
+          newest reply lands, which is what "the reader is at the top" means; a
+          zero-height element cannot intersect, so it needs the pixel.
+        */}
+        <div ref={startRef} aria-hidden className="h-px" />
+        {/*
+          divide-y rather than a border-b per row: the oldest reply now sits at
+          the bottom of the list, and its own bottom border would run across the
+          composer below it. Dividers draw between replies only, so the list ends
+          without a rule.
+        */}
+        <ul ref={setListRef} className="divide-y divide-feed-line">
           {replies.map((reply) => (
-            <li key={reply.id} className="border-b border-feed-line">
+            <li key={reply.id}>
               <Reply post={reply} />
             </li>
           ))}
         </ul>
-        {/*
-          The sentinel the IntersectionObserver above watches. It marks where the
-          thread ends, which is what "the reader is at the bottom" means; a
-          zero-height element cannot intersect, so it needs the pixel.
-        */}
-        <div ref={endRef} aria-hidden className="h-px" />
       </div>
 
+      {/*
+        The composer sits above the thread rather than beside it: its own
+        background and a stacking order, so a reply that scrolls down to it is
+        covered instead of showing its dividers through the field. Only then is
+        the border its own line — without the background it was whatever row
+        happened to be underneath.
+      */}
       <form
         onSubmit={(event) => {
           event.preventDefault();
           submit();
         }}
-        className="flex items-center gap-[2.2cqw] border-t border-feed-line px-[3cqw] py-[2.2cqw]"
+        className="relative z-10 flex shrink-0 items-center gap-[2.2cqw] border-t border-feed-line bg-feed-surface px-[3cqw] py-[2.2cqw]"
       >
         <Avatar post={{ author: "You", handle: "@you" }} />
         <textarea
