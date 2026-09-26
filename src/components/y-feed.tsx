@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
+import { MAX_TWEET_LENGTH } from "~/lib/feed/tweet";
 import { formatClock } from "~/lib/trading-session";
 
 /*
@@ -354,6 +355,9 @@ export default function YFeed({
             }
           }}
           rows={1}
+          // The bound the payload enforces anyway. Without it the player types
+          // past it and the tail disappears on the way out with no explanation.
+          maxLength={MAX_TWEET_LENGTH}
           aria-label="Post your reply"
           placeholder="Post your reply"
           className="min-w-0 flex-1 resize-none bg-transparent text-[2.8cqw] leading-snug placeholder:text-feed-muted focus:outline-none"

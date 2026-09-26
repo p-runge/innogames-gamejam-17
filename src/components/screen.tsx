@@ -1,7 +1,10 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
+
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
+import { useGameState } from "~/components/game-state-provider";
 import Portfolio from "~/components/portfolio";
 import TradeControls from "~/components/trade-controls";
 import YFeed from "~/components/y-feed";
@@ -10,6 +13,7 @@ import { usePortfolio } from "~/hooks/use-portfolio";
 import { useYThread } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
 import { TRADING_SESSION } from "~/lib/trading-session";
+import { useTRPC } from "~/lib/trpc/client";
 
 const SYMBOL = "INNO";
 
@@ -41,11 +45,25 @@ const SITES = {
 } as const;
 
 export default function Screen({ className }: { className: string }) {
+  const trpc = useTRPC();
   const candles = useMarketFeed();
+  const { replies } = useGameState();
   const { cash, shares, transactions, startingCash, trade } = usePortfolio({
     symbol: SYMBOL,
   });
-  const { posts, post } = useYThread();
+
+  // The post is rendered optimistically, so a failure here costs the crowd's
+  // answer and nothing else. Logged rather than surfaced: a game jam round is
+  // more playable with a quiet thread than with an error over the chart.
+  const sendTweet = useMutation(
+    trpc.tweets.sendTweet.mutationOptions({
+      onError: (error) => {
+        console.error("sending the tweet failed", error);
+      },
+    }),
+  );
+
+  const { posts, post } = useYThread({ replies, publish: sendTweet.mutate });
 
   const latest = candles.at(-1);
   // Orders fill at the forming candle's close, which is the live price.
