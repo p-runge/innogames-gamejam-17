@@ -1,11 +1,13 @@
 import type { TweetPayload } from "~/lib/events/types";
-import type { Persona, PersonaStance } from "~/lib/llm/schemas";
+import type { Persona, PersonaStance, Reply } from "~/lib/llm/schemas";
 
 /*
   Every import above is type-only on purpose. Node strips those entirely, which
   lets the evaluation script under tools/ import this file directly and measure
   the prompts the game actually sends, rather than a copy that drifts from them.
 */
+
+type Mood = Reply["mood"];
 
 /**
  * The register is stated as a requirement, not as a permission. "These are
@@ -85,6 +87,30 @@ export function personaStance(index: number): PersonaStance {
   return ARCHETYPES[index % ARCHETYPES.length].stance;
 }
 
+/**
+ * Which moods a stance may carry.
+ *
+ * The mood is what moves the price, and left to the reply alone it tracks the
+ * register rather than the market: measured on qwen3.5:4b across 30 generations,
+ * 'dump' came back 11 times and 'moon' not once, because the system prompt asks
+ * for fury and fury reads as selling. Bound to the stance, a bull can despise
+ * whoever it is answering and still be buying — which is what makes the crowd's
+ * composition, and not its temper, decide where the index goes.
+ *
+ * Chaos keeps the full range on purpose: it is the third of the cast that is
+ * meant to be unreadable, and pinning it would leave the index tracking the
+ * bull/bear count exactly.
+ */
+const STANCE_MOODS: Record<PersonaStance, Mood[]> = {
+  bull: ["bullish", "moon"],
+  bear: ["bearish", "dump"],
+  chaos: ["dump", "bearish", "neutral", "bullish", "moon"],
+};
+
+export function moodsFor(stance: PersonaStance): Mood[] {
+  return STANCE_MOODS[stance];
+}
+
 export function personaPrompt(index: number): string {
   const { seed } = ARCHETYPES[index % ARCHETYPES.length];
   return `Invent one account that ${seed}. Give it a name, a handle, a bio in its own voice, and one verbal tic.`;
@@ -115,13 +141,19 @@ export const REPLY_SYSTEM = [
   "First choose the mood your reply will carry, then write a reply that means",
   "it: 'dump' and 'bearish' read as selling pressure, 'moon' and 'bullish' as",
   "buying pressure, 'neutral' as neither.",
+  // Without this the mood follows the register instead of the position, and
+  // since the register is fury, every account sells.
+  "The mood is where you stand in the market, not how you feel about anyone.",
+  "Mocking someone, swearing at them or thinking they are an idiot does not",
+  "change which way you are trading. Pick only from the moods your account is",
+  "given.",
 ].join(" ");
 
 function voice(persona: Persona): string {
   // The handle is deliberately left out. Given it, the model copies it into
   // the opening of the reply even when told not to, and the account ends up
   // addressing itself. Everything that shapes the voice is here without it.
-  return `You are ${persona.name}. ${persona.bio}. You are ${persona.stance === "chaos" ? "unpredictable about the market" : persona.stance === "bull" ? "convinced the price is going up" : "convinced the price is going down"}. Your habit: ${persona.tic}. That bio is what you are angry about — write from it, not from what anyone else is angry about.`;
+  return `You are ${persona.name}. ${persona.bio}. You are ${persona.stance === "chaos" ? "unpredictable about the market" : persona.stance === "bull" ? "convinced the price is going up" : "convinced the price is going down"}. Your habit: ${persona.tic}. That bio is what you are angry about — write from it, not from what anyone else is angry about. Your mood must be one of: ${moodsFor(persona.stance).join(", ")}.`;
 }
 
 /**
