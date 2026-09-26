@@ -1,4 +1,5 @@
 import { cn } from "~/lib/cn";
+import { euro, signedEuro } from "~/lib/money";
 
 export type BankTransaction = {
   id: string;
@@ -6,18 +7,6 @@ export type BankTransaction = {
   /** Signed. Negative is money leaving the account. */
   amount: number;
 };
-
-const euro = new Intl.NumberFormat("de-DE", {
-  style: "currency",
-  currency: "EUR",
-});
-
-/*
-  U+2212 rather than a hyphen, to match the delta in the chart's header and
-  because a hyphen sits too high and too short next to tabular figures.
-*/
-const signedEuro = (amount: number) =>
-  `${amount < 0 ? "−" : "+"}${euro.format(Math.abs(amount))}`;
 
 /**
  * The player's account, as their bank would show it. Presentational only — the
@@ -64,7 +53,7 @@ export default function BankAccount({
           ledger below and in the chart above.
         */}
         <div className="text-[6cqw] tabular-nums text-white">
-          {euro.format(balance)}
+          {euro(balance)}
         </div>
       </div>
 

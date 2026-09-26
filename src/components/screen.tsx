@@ -1,25 +1,32 @@
 "use client";
 
-import BankAccount, { type BankTransaction } from "~/components/bank-account";
+import BankAccount from "~/components/bank-account";
 import CandleChart from "~/components/candle-chart";
+import TradeControls from "~/components/trade-controls";
 import { useMarketFeed } from "~/hooks/use-market-feed";
+import { usePortfolio } from "~/hooks/use-portfolio";
 import { cn } from "~/lib/cn";
 
+const SYMBOL = "INNO";
+
 /*
-  Placeholders until the game owns the player's money. Everything here is
-  invented — the bank does not exist and the IBAN is not a valid one.
+  Invented, and not meant to pass for real: the bank does not exist and the IBAN
+  is not a valid one.
 */
 const BANK = "ASCENDIA BANK";
 const IBAN = "DE89 •••• •••• •••• 4412";
-const BALANCE = 18_450.72;
-const TRANSACTIONS: BankTransaction[] = [
-  { id: "1", label: "Order · INNO", amount: -4_200 },
-  { id: "2", label: "Dividend", amount: 312.5 },
-  { id: "3", label: "Brokerage fee", amount: -19.9 },
-];
+
+/** Ledger rows the account panel has room for. */
+const LEDGER_SHOWN = 3;
 
 export default function Screen({ className }: { className: string }) {
   const candles = useMarketFeed();
+  const { cash, shares, transactions, trade } = usePortfolio({
+    symbol: SYMBOL,
+  });
+
+  // Orders fill at the forming candle's close, which is the live price.
+  const price = candles.at(-1)?.close;
 
   return (
     <div className={cn("relative h-full w-full bg-terminal", className)}>
@@ -31,16 +38,28 @@ export default function Screen({ className }: { className: string }) {
         chart, the gap between the panels and the margin below the account all
         measure the same on the glass.
       */}
-      <CandleChart
-        symbol="INNO"
-        candles={candles}
-        className="absolute top-[5.33%] right-[3%] h-[44%] w-[44%] overflow-hidden rounded-[0.4cqw] border border-terminal-grid"
-      />
+      <section className="absolute top-[5.33%] right-[3%] flex h-[44%] w-[44%] flex-col overflow-hidden rounded-[0.4cqw] border border-terminal-grid">
+        <CandleChart
+          symbol={SYMBOL}
+          candles={candles}
+          className="min-h-0 flex-1"
+        />
+        <TradeControls
+          symbol={SYMBOL}
+          price={price}
+          cash={cash}
+          shares={shares}
+          onTrade={(side, quantity) => {
+            if (price !== undefined) trade(side, quantity, price);
+          }}
+          className="border-t border-terminal-grid"
+        />
+      </section>
       <BankAccount
         bank={BANK}
         iban={IBAN}
-        balance={BALANCE}
-        transactions={TRANSACTIONS}
+        balance={cash}
+        transactions={transactions.slice(0, LEDGER_SHOWN)}
         className="absolute right-[3%] bottom-[5.33%] h-[40%] w-[44%] overflow-hidden rounded-[0.4cqw] border border-terminal-grid"
       />
     </div>
