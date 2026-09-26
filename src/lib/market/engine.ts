@@ -13,6 +13,8 @@ import type { ImpulseSource, Mood } from "./types";
 type EngineState = {
   market: MarketState;
   timer: ReturnType<typeof setInterval> | null;
+  /** Called once when the session clock passes the close. */
+  onClose: (() => void) | null;
 };
 
 // Pinned to globalThis for the same reason the event bus is: `next dev`
@@ -23,7 +25,11 @@ const globalForMarket = globalThis as typeof globalThis & {
 };
 
 function getEngine(): EngineState {
-  globalForMarket.gameMarket ??= { market: createState(), timer: null };
+  globalForMarket.gameMarket ??= {
+    market: createState(),
+    timer: null,
+    onClose: null,
+  };
   return globalForMarket.gameMarket;
 }
 
@@ -39,10 +45,17 @@ export function isRunning(): boolean {
  * Start the round. Idempotent on purpose: React double-mounts in development and
  * a second browser calls this too, and a second ticker would run the same world
  * at twice the speed without reporting anything wrong.
+ *
+ * `onClose` fires once when the session clock passes the close. The engine
+ * cannot reach the crowd or the reply queue itself without market code
+ * depending on npc code, and the round has to be torn down from somewhere: left
+ * running, the crowd keeps generating and posting into a finished round forever.
  */
-export function startSession(): void {
+export function startSession(onClose?: () => void): void {
   const engine = getEngine();
   if (engine.timer) return;
+
+  engine.onClose = onClose ?? null;
 
   // A finished round is not resumable: its series is full and `advance` is a
   // no-op on a closed state, so reusing it would start a ticker that clears
@@ -56,7 +69,12 @@ export function startSession(): void {
     engine.market = next;
 
     if (next.closed) {
+      const { onClose } = engine;
       stopSession();
+      // After stopSession, so a handler that inspects isRunning() sees the
+      // round as over, and cleared first so it cannot fire twice.
+      engine.onClose = null;
+      onClose?.();
       return;
     }
 
