@@ -4,10 +4,11 @@
 # attaches Traefik to it. Declaring an own network leaves the proxy outside it,
 # which surfaces as intermittent 504s rather than as a configuration error.
 #
-# This stack must run with exactly ONE replica. The event bus lives in the
-# application process, so a second instance would hold a second, separate world:
-# each browser would only see the events raised by the instance it happens to be
-# connected to, and nothing in the application reports the split.
+# This stack must run with exactly ONE replica. The event bus and the market
+# engine both live in the application process, so a second instance would hold a
+# second, separate world: each browser would only see the events raised by the
+# instance it happens to be connected to and would follow a price series of its
+# own, and nothing in the application reports the split.
 
 services:
   app:
@@ -19,8 +20,20 @@ services:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
       - PORT=3000
+      - LLM_BASE_URL=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5:4b}
     expose:
       - "3000"
+    depends_on:
+      ollama:
+        # service_started, NOT service_healthy. The healthcheck answers "is the
+        # model usable", which is the right question for a dashboard and the
+        # wrong one for a gate: anything that keeps the model from loading would
+        # stop `app` from being created at all, and the player gets a 502 with
+        # no chart, no trading and no portfolio. The app already treats a silent
+        # model as a normal condition and falls back to curated personas and
+        # templated replies, so it should start and serve regardless.
+        condition: service_started
     healthcheck:
       test:
         [
@@ -33,3 +46,57 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 3
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      # Read by the entrypoint script, not by Ollama itself. Kept identical to
+      # the app's LLM_MODEL so both sides of the stack agree on which weights
+      # this deploy runs.
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5:4b}
+      - OLLAMA_KEEP_ALIVE=30m
+      # Eight other applications share this host's 8 vCPUs. Without this, one
+      # generation saturates every core and stalls all of them.
+      - OLLAMA_NUM_THREAD=4
+      # One request at a time, one model resident. Ollama's automatic
+      # parallelism allocates a KV cache per slot, which is what makes the 6g
+      # limit reachable at all; the game never needs more than a few concurrent
+      # generations and the crowd already caps itself at three.
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+    # No port mapping: only `app` talks to this, over the Compose network.
+    expose:
+      - "11434"
+    cpus: "4.0"
+    mem_limit: 6g
+    # Without this Docker allows another 6g of swap on top of the limit. On a
+    # 15.2 GiB host that also runs Postgres and eight other applications, swap
+    # thrash degrades every neighbour, not just this stack.
+    memswap_limit: 6g
+    # Biases the OOM killer away from the neighbours when the host runs short
+    # while Ollama sits comfortably under its own limit.
+    mem_reservation: 2g
+    volumes:
+      # The weights live in a volume rather than an image layer, so a redeploy
+      # does not pull gigabytes again.
+      - ollama-models:/root/.ollama
+      - ./services/ollama/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      # `ollama list` returns 0 against an empty model store, so it reports
+      # healthy while the weights are still downloading — and `app` waits on
+      # this check, so it would start against a model that cannot answer yet.
+      # `ollama show <model>` fails until the configured model is usable.
+      # CMD-SHELL because the variable has to be expanded inside the container,
+      # and $$ because Compose would otherwise interpolate it here.
+      test: ["CMD-SHELL", 'ollama show "$$LLM_MODEL" >/dev/null 2>&1']
+      interval: 10s
+      timeout: 5s
+      # A cold volume downloads the model before it answers; the app waits on
+      # this healthcheck, so the window has to cover that download.
+      start_period: 900s
+      retries: 10
+
+volumes:
+  ollama-models:

@@ -1,0 +1,48 @@
+# Local counterpart to docker-compose.prod.yml. Only Ollama runs here: `pnpm dev`
+# stays on the host, because `next dev` behind a macOS bind mount loses most of
+# its hot-reload speed. The single difference between the two environments is
+# LLM_BASE_URL.
+#
+# ON APPLE SILICON, DO NOT USE THIS SERVICE FOR DEVELOPMENT. Docker Desktop
+# gives containers no access to the Metal GPU, so Ollama falls back to CPU
+# inference inside a VM. Measured on an M1 Pro with qwen3.5:4b: 0.11 tokens per
+# second here against 56 in the native Ollama app, which is five minutes for a
+# single 35-token reply. Point LLM_BASE_URL at the native app (port 11434)
+# instead; .env.local already does.
+#
+# This file is still correct and useful on Linux, where the container reaches
+# the host's CPU directly, and it is what keeps the production setup honest:
+# the service definition here is the one docker-compose.prod.yml runs.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      # Read by the entrypoint script below, not by Ollama itself.
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5:4b}
+      # Keeps the weights resident between rounds, so the second round of a
+      # playtest does not pay the load time again.
+      - OLLAMA_KEEP_ALIVE=30m
+    ports:
+      # 11435 on the host on purpose: 11434 belongs to a locally installed
+      # Ollama app, and taking it would break the developer's own setup.
+      - "11435:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+      - ./services/ollama/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      # `ollama list` returns 0 against an empty model store, so it reports
+      # healthy while the weights are still downloading. `ollama show <model>`
+      # is the cheapest call that fails until the configured model is actually
+      # usable. CMD-SHELL because the variable has to be expanded inside the
+      # container, and $$ because Compose would otherwise interpolate it here.
+      test: ["CMD-SHELL", 'ollama show "$$LLM_MODEL" >/dev/null 2>&1']
+      interval: 10s
+      timeout: 5s
+      # The first start downloads the model, which takes minutes on a cold cache.
+      start_period: 600s
+      retries: 6
+
+volumes:
+  ollama-models:
