@@ -4,12 +4,25 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSubscription } from "@trpc/tanstack-react-query";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
+import type { TipPayload } from "~/lib/events/types";
+import { mergeTips } from "~/lib/feed/tips";
 import { joinSeries, mergeCandle } from "~/lib/market/merge";
 import type { Candle } from "~/lib/market/types";
 import { useTRPC } from "~/lib/trpc/client";
 
 type GameState = {
   candles: Candle[];
+  /** The informant's private messages, oldest first, deduplicated on id. */
+  tips: TipPayload[];
+  /**
+   * Whether the server's snapshot has arrived at least once.
+   *
+   * The provider renders before its first query resolves, so everything above
+   * starts empty and fills a moment later. For the candles that is invisible;
+   * for the dock it is the difference between a delivery and a reload, and it
+   * has no other way to tell.
+   */
+  ready: boolean;
 };
 
 const GameStateContext = createContext<GameState | null>(null);
@@ -30,6 +43,7 @@ export default function GameStateProvider({
   // would mean setting state in an effect, which this project's lint rules
   // rightly refuse.
   const [live, setLive] = useState<Candle[]>([]);
+  const [liveTips, setLiveTips] = useState<TipPayload[]>([]);
 
   const start = useMutation(trpc.session.start.mutationOptions());
   // Refetched on a timer, not just once. The snapshot is this client's only way
@@ -54,6 +68,11 @@ export default function GameStateProvider({
     [snapshot.data, live],
   );
 
+  const tips = useMemo(
+    () => mergeTips(snapshot.data?.tips ?? [], liveTips),
+    [snapshot.data, liveTips],
+  );
+
   useSubscription(
     trpc.events.onEvent.subscriptionOptions(undefined, {
       // `tracked()` on the server wraps each event, so the payload arrives as
@@ -62,6 +81,9 @@ export default function GameStateProvider({
         switch (data.type) {
           case "price":
             setLive((previous) => mergeCandle(previous, data.payload.candle));
+            break;
+          case "tip":
+            setLiveTips((previous) => [...previous, data.payload]);
             break;
           case "tweet":
             // The player's own post is rendered optimistically where it was
@@ -76,7 +98,12 @@ export default function GameStateProvider({
     }),
   );
 
-  const value = useMemo(() => ({ candles }), [candles]);
+  const ready = snapshot.isSuccess;
+
+  const value = useMemo(
+    () => ({ candles, tips, ready }),
+    [candles, tips, ready],
+  );
 
   return (
     <GameStateContext.Provider value={value}>

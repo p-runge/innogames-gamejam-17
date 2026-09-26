@@ -4,6 +4,8 @@ import { useMutation } from "@tanstack/react-query";
 
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
+import DmDock from "~/components/dm-dock";
+import { useGameState } from "~/components/game-state-provider";
 import Portfolio from "~/components/portfolio";
 import TradeControls from "~/components/trade-controls";
 import YFeed from "~/components/y-feed";
@@ -46,6 +48,7 @@ const SITES = {
 export default function Screen({ className }: { className: string }) {
   const trpc = useTRPC();
   const candles = useMarketFeed();
+  const { tips, ready } = useGameState();
   const { cash, shares, transactions, startingCash, trade } = usePortfolio({
     symbol: SYMBOL,
   });
@@ -85,11 +88,24 @@ export default function Screen({ className }: { className: string }) {
         {...SITES.y}
         className="absolute inset-y-0 left-0 w-1/2 overflow-hidden border-r border-terminal-grid"
       >
-        <YFeed
-          posts={posts}
-          onPost={(suggestion) => post(suggestion, now)}
-          className="h-full w-full"
-        />
+        {/*
+          The dock is a sibling of the feed, not a child of it: it is docked to
+          the window rather than to the thread, so it must not move when the
+          thread scrolls. `bottom` clears the composer, which has to stay
+          reachable while a message is open.
+        */}
+        <div className="@container relative h-full w-full">
+          <YFeed
+            posts={posts}
+            onPost={(suggestion) => post(suggestion, now)}
+            className="h-full w-full"
+          />
+          <DmDock
+            tips={tips}
+            ready={ready}
+            className="absolute right-[3cqw] bottom-[9cqw]"
+          />
+        </div>
       </BrowserFrame>
       <BrowserFrame
         {...SITES.terminal}
