@@ -2,6 +2,7 @@ import { isTrackedEnvelope } from "@trpc/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { getRunId, publish, resetBus } from "~/lib/events/bus";
 import type { GameEvent } from "~/lib/events/types";
+import { resetMarket } from "~/lib/market/engine";
 import { appRouter } from "./_app";
 
 // The signal belongs to createCaller, not to the procedure call. Passing it as
@@ -26,6 +27,26 @@ function unwrap(value: unknown): { id: string; event: GameEvent } {
 
 afterEach(() => {
   resetBus();
+  // The market is pinned to globalThis, so without this a session started in one
+  // test is still ticking in the next one.
+  resetMarket();
+});
+
+describe("session", () => {
+  it("returns the opening candle from start", async () => {
+    const result = await caller().session.start();
+    expect(result.candles).toHaveLength(1);
+    expect(result.closed).toBe(false);
+  });
+
+  it("reports running after start", async () => {
+    await caller().session.start();
+    expect((await caller().session.state()).running).toBe(true);
+  });
+
+  it("reports not running before any start", async () => {
+    expect((await caller().session.state()).running).toBe(false);
+  });
 });
 
 describe("sendTweet", () => {

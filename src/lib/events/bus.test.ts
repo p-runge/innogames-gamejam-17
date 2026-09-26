@@ -12,6 +12,16 @@ function tweet(message: string): GameEvent {
   return { type: "tweet", payload: { username: "gamejam", message } };
 }
 
+/**
+ * The message of a published tweet. The bus carries price events too, so the
+ * event type has to be narrowed before a payload field can be read; a cast would
+ * hide the day a test is handed the wrong event kind.
+ */
+function messageOf(published?: { event: GameEvent }): string | undefined {
+  const { event } = published ?? {};
+  return event?.type === "tweet" ? event.payload.message : undefined;
+}
+
 /** Collect `count` events, then stop so the generator terminates. */
 async function collect(
   generator: AsyncGenerator<{ id: number; event: GameEvent }>,
@@ -46,7 +56,7 @@ describe("subscribe", () => {
     publish(tweet("live"));
 
     const received = await collected;
-    expect(received[0]?.event.payload.message).toBe("live");
+    expect(messageOf(received[0])).toBe("live");
     controller.abort();
   });
 
@@ -58,8 +68,8 @@ describe("subscribe", () => {
 
     publish(tweet("broadcast"));
 
-    expect((await first)[0]?.event.payload.message).toBe("broadcast");
-    expect((await second)[0]?.event.payload.message).toBe("broadcast");
+    expect(messageOf((await first)[0])).toBe("broadcast");
+    expect(messageOf((await second)[0])).toBe("broadcast");
     a.abort();
     b.abort();
   });
@@ -74,7 +84,7 @@ describe("subscribe", () => {
       1,
     );
 
-    expect(received.map((r) => r.event.payload.message)).toEqual(["two"]);
+    expect(received.map(messageOf)).toEqual(["two"]);
     controller.abort();
   });
 
@@ -87,7 +97,7 @@ describe("subscribe", () => {
     publish(tweet("after"));
 
     const received = await collected;
-    expect(received.map((r) => r.event.payload.message)).toEqual(["after"]);
+    expect(received.map(messageOf)).toEqual(["after"]);
     controller.abort();
   });
 
@@ -103,8 +113,8 @@ describe("subscribe", () => {
     const second = await generator.next();
     const third = generator.next();
 
-    expect(first.value?.event.payload.message).toBe("buffered");
-    expect(second.value?.event.payload.message).toBe("during-replay");
+    expect(messageOf(first.value)).toBe("buffered");
+    expect(messageOf(second.value)).toBe("during-replay");
 
     // The "exactly once" half: a duplicate would resolve `third` with an event
     // instead of ending the stream.
