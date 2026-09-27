@@ -1,6 +1,6 @@
 import { getMarketState, isRunning } from "~/lib/market/engine";
 import { tipHistory } from "~/lib/news/desk";
-import { startRound } from "~/lib/round";
+import { endRound, startRound } from "~/lib/round";
 import { baseProcedure, router } from "../init";
 
 export const sessionRouter = router({
@@ -13,6 +13,19 @@ export const sessionRouter = router({
     startRound();
     const { candles, closed } = getMarketState();
     return { candles, closed };
+  }),
+
+  /**
+   * End the round for good.
+   *
+   * Called when the player leaves a finished round for the menu. Without it the
+   * ticker outlives the ending, and the next start joins the abandoned round
+   * rather than opening a new day.
+   */
+  end: baseProcedure.mutation(() => {
+    endRound();
+
+    return { closed: true } as const;
   }),
 
   /**

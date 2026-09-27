@@ -81,3 +81,31 @@ describe("startSession", () => {
     expect(isRunning()).toBe(true);
   });
 });
+
+describe("stopping a round before the close", () => {
+  it("marks the market closed, so it is not resumable", () => {
+    startSession();
+    stopSession();
+
+    expect(getMarketState().closed).toBe(true);
+  });
+
+  it("lets the next start open a fresh series", () => {
+    // Losing to the Insane-O-Meter at two in the afternoon leaves the ticker
+    // running. Without the flag above, going back to the menu and pressing start
+    // joined the abandoned round at its old price with its remaining minutes.
+    vi.useFakeTimers();
+    startSession();
+    vi.advanceTimersByTime(60_000);
+    const abandoned = getMarketState().candles.length;
+    expect(abandoned).toBeGreaterThan(1);
+
+    stopSession();
+    startSession();
+
+    const state = getMarketState();
+    expect(state.closed).toBe(false);
+    expect(state.candles).toHaveLength(1);
+    expect(state.elapsedSeconds).toBe(0);
+  });
+});

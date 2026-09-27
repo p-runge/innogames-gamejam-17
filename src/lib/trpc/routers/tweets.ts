@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 
 import { publish } from "~/lib/events/bus";
-import { tweetPayloadSchema } from "~/lib/events/types";
+import { sendTweetInputSchema } from "~/lib/events/types";
 import { getSuggestion } from "~/lib/feed/suggestions";
 import { applyImpulse } from "~/lib/market/engine";
 import { baseProcedure, router } from "../init";
@@ -16,7 +16,7 @@ export const tweetsRouter = router({
    * pool than this server, and a post with no market effect is the confusing way
    * for that to show up.
    */
-  sendTweet: baseProcedure.input(tweetPayloadSchema).mutation(({ input }) => {
+  sendTweet: baseProcedure.input(sendTweetInputSchema).mutation(({ input }) => {
     const suggestion = getSuggestion(input.suggestionId);
 
     if (suggestion === undefined) {
@@ -26,11 +26,17 @@ export const tweetsRouter = router({
       });
     }
 
-    const published = publish({ type: "tweet", payload: input });
+    // Only the post itself goes back out. The mania scale is the poster's own
+    // state and means nothing to anyone else reading the feed.
+    const published = publish({
+      type: "tweet",
+      payload: { username: input.username, suggestionId: input.suggestionId },
+    });
 
     // After the publish, so the post is on the bus before the price it caused
-    // starts moving.
-    applyImpulse(suggestion.mood);
+    // starts moving. The scale is the poster's band: a manic voice is a louder
+    // one, which is the whole bargain the Insane-O-Meter offers.
+    applyImpulse(suggestion.mood, input.mania);
 
     return { id: published.id };
   }),

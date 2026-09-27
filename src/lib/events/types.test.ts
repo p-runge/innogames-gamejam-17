@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { gameEventSchema, tweetPayloadSchema } from "./types";
+import {
+  gameEventSchema,
+  sendTweetInputSchema,
+  tweetPayloadSchema,
+} from "./types";
 
 describe("tweetPayloadSchema", () => {
   it("accepts a well-formed tweet", () => {
@@ -39,6 +43,41 @@ describe("tweetPayloadSchema", () => {
       suggestionId: "moon-3",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("sendTweetInputSchema", () => {
+  const post = { username: "You", suggestionId: "moon-3" };
+
+  it("defaults to no mania at all", () => {
+    expect(sendTweetInputSchema.parse(post).mania).toBe(1);
+  });
+
+  it("takes a scale a band can actually produce", () => {
+    expect(sendTweetInputSchema.parse({ ...post, mania: 1.25 }).mania).toBe(1.25);
+  });
+
+  it("clamps rather than rejects, so a client rounding artifact costs no post", () => {
+    expect(sendTweetInputSchema.parse({ ...post, mania: 1.6000001 }).mania).toBe(
+      1.6,
+    );
+    expect(sendTweetInputSchema.parse({ ...post, mania: 0.2 }).mania).toBe(1);
+    expect(sendTweetInputSchema.parse({ ...post, mania: 40 }).mania).toBe(1.6);
+  });
+
+  it("still needs a real post under it", () => {
+    expect(
+      sendTweetInputSchema.safeParse({ username: "You", mania: 1.6 }).success,
+    ).toBe(false);
+  });
+
+  it("keeps mania out of what goes back on the bus", () => {
+    // The broadcast payload is the narrower schema, and zod strips what it does
+    // not know: a second player watching the feed learns nothing about the
+    // poster's head.
+    expect(tweetPayloadSchema.parse({ ...post, mania: 1.6 })).not.toHaveProperty(
+      "mania",
+    );
   });
 });
 

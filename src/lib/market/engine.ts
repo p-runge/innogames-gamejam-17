@@ -83,6 +83,18 @@ export function startSession(onClose?: () => void): void {
 
 export function stopSession(): void {
   const engine = getEngine();
+
+  /*
+    Marked closed whether or not a timer was running, and before the early return,
+    because stopping a round has always meant ending it: `startSession` refuses to
+    resume a closed state and builds a fresh one instead.
+
+    Without this, a round abandoned before the bell — which is what losing to the
+    Insane-O-Meter is — left its series behind, and the next start joined it at its
+    old price with its remaining minutes rather than opening a new day.
+  */
+  engine.market = { ...engine.market, closed: true };
+
   if (!engine.timer) return;
   clearInterval(engine.timer);
   engine.timer = null;

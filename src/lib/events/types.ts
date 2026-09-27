@@ -15,6 +15,28 @@ export const tweetPayloadSchema = z.object({
   suggestionId: z.string().min(1).max(40),
 });
 
+/**
+ * What the client sends when it posts, which is the post plus one number.
+ *
+ * The mood still comes from the pool on the server, because a client that chose
+ * its own mood could ask for any price move it liked. The mania scale cannot work
+ * that way: it comes from the Insane-O-Meter, which lives in the client beside
+ * the portfolio, so there is no copy here to check it against.
+ *
+ * It is therefore trusted, and clamped to the range the bands can actually
+ * produce. Clamped rather than rejected because a rejection throws away the
+ * post: a float artifact one ulp over 1.6 would cost the player a press and the
+ * price move they paid sanity for. A single-player round has nothing to defend,
+ * and the clamp is only there so a bug in the client cannot turn one post into a
+ * thousand percent.
+ */
+export const sendTweetInputSchema = tweetPayloadSchema.extend({
+  mania: z
+    .number()
+    .default(1)
+    .transform((value) => Math.min(1.6, Math.max(1, value))),
+});
+
 export const pricePayloadSchema = z.object({
   /**
    * Only the candle that changed, not the series. At four ticks per second the
@@ -58,6 +80,7 @@ export const gameEventSchema = z.discriminatedUnion("type", [
 ]);
 
 export type TweetPayload = z.infer<typeof tweetPayloadSchema>;
+export type SendTweetInput = z.infer<typeof sendTweetInputSchema>;
 export type PricePayload = z.infer<typeof pricePayloadSchema>;
 export type TipPayload = z.infer<typeof tipPayloadSchema>;
 export type GameEvent = z.infer<typeof gameEventSchema>;
