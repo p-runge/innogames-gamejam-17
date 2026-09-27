@@ -7,6 +7,7 @@ import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
 import Distortion from "~/components/distortion";
 import { useGameState } from "~/components/game-state-provider";
+import { useInformantInbox } from "~/components/informant-provider";
 import { useInsanity } from "~/components/insanity-provider";
 import Portfolio from "~/components/portfolio";
 import EndScene from "~/components/scenes/end-scene";
@@ -75,7 +76,8 @@ export default function GameScene({
 }) {
   const trpc = useTRPC();
   const candles = useMarketFeed();
-  const { tips, ready, closed } = useGameState();
+  const { ready, closed } = useGameState();
+  const inbox = useInformantInbox();
   const { play } = useSound();
   const { insanity, band, register, cost } = useInsanity();
   const { cash, shares, transactions, startingCash, avgCost, trade } =
@@ -84,7 +86,13 @@ export default function GameScene({
   // The three things that make a sound without anyone pressing for it: the
   // market moving hard, a tip landing, and nothing happening at all.
   useMarketSfx(candles);
-  useTipSfx({ count: tips.length, ready });
+  /*
+    Counted off the merged inbox, not the informant's real tips. Driven by the
+    real ones, every chime was a true message and every silent bubble was
+    invented, so a player with the sound on could tell the lies apart by ear —
+    which is the one thing this whole mechanic must not allow.
+  */
+  useTipSfx({ count: inbox.length, ready });
   useIdleSfx();
 
   // The post is rendered optimistically, so a failure here costs the broadcast

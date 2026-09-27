@@ -4,11 +4,10 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { useGameState } from "~/components/game-state-provider";
-import { useInsanity } from "~/components/insanity-provider";
-import { useInformantMessages } from "~/hooks/use-informant-messages";
+import { useInformantInbox } from "~/components/informant-provider";
 import { cn } from "~/lib/cn";
 import type { TipPayload } from "~/lib/events/types";
-import { formatClock, TRADING_SESSION } from "~/lib/trading-session";
+import { formatClock } from "~/lib/trading-session";
 
 /** How long an arriving message stays up before the bubble goes away. */
 export const BUBBLE_MS = 8_000;
@@ -26,16 +25,8 @@ export const BUBBLE_MS = 8_000;
  * which is which, because neither can the player.
  */
 export default function Phone() {
-  const { tips, ready, candles } = useGameState();
-  const { band } = useInsanity();
-
-  /*
-    A fabrication is stamped with the session clock, like the informant's own
-    messages, so it sits on the same timeline as the candles rather than on the
-    player's wall clock.
-  */
-  const at = candles.at(-1)?.t ?? TRADING_SESSION.openMinutes;
-  const messages = useInformantMessages({ tips, band, at });
+  const { ready } = useGameState();
+  const messages = useInformantInbox();
 
   return <PhoneOnDesk tips={messages} ready={ready} />;
 }

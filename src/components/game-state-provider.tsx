@@ -2,11 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSubscription } from "@trpc/tanstack-react-query";
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
 
+import { useRoundStream } from "~/hooks/use-round-stream";
 import type { TipPayload } from "~/lib/events/types";
 import { mergeTips } from "~/lib/feed/tips";
-import { joinSeries, mergeCandle } from "~/lib/market/merge";
+import { joinSeries } from "~/lib/market/merge";
 import type { Candle } from "~/lib/market/types";
 import { roundHasClosed } from "~/lib/round-outcome";
 import { useTRPC } from "~/lib/trpc/client";
@@ -31,6 +32,14 @@ type GameState = {
    * has no other way to tell.
    */
   ready: boolean;
+  /**
+   * How many rounds this page has opened.
+   *
+   * The key anything holding per-round state watches, so one `start` clears all
+   * of it. Nothing about the world, and deliberately not the server's: it counts
+   * this browser's rounds, which is what the phone and the meter are scoped to.
+   */
+  round: number;
   /**
    * Whether the server considers the round over.
    *
@@ -58,8 +67,14 @@ export default function GameStateProvider({
   // snapshot below and is never copied into state: seeding state from a query
   // would mean setting state in an effect, which this project's lint rules
   // rightly refuse.
-  const [live, setLive] = useState<Candle[]>([]);
-  const [liveTips, setLiveTips] = useState<TipPayload[]>([]);
+  const {
+    round,
+    candles: live,
+    tips: liveTips,
+    open,
+    addCandle,
+    addTip,
+  } = useRoundStream();
 
   const queryClient = useQueryClient();
   const start = useMutation(
@@ -73,6 +88,18 @@ export default function GameStateProvider({
       },
     }),
   );
+
+  const startMutate = start.mutate;
+  const startRound = useCallback(() => {
+    /*
+      The last round's candles go before the request does, not when its reply
+      lands. The scene switches on the click, so anything still held here is read
+      by the new round's first frame — and the last thing the previous round
+      streamed is the closing slot, which ends the new day about five seconds in.
+    */
+    open();
+    startMutate();
+  }, [open, startMutate]);
   // Refetched on a timer, not just once. The snapshot is this client's only way
   // back to the shared series after the stream misses something: a late attach,
   // a reconnect whose backlog outran the 100-event buffer, or a subscription
@@ -100,10 +127,10 @@ export default function GameStateProvider({
       onData: ({ data }) => {
         switch (data.type) {
           case "price":
-            setLive((previous) => mergeCandle(previous, data.payload.candle));
+            addCandle(data.payload.candle);
             break;
           case "tip":
-            setLiveTips((previous) => [...previous, data.payload]);
+            addTip(data.payload);
             break;
           case "tweet":
             // The player's own post is rendered optimistically where it was
@@ -127,13 +154,12 @@ export default function GameStateProvider({
   const closed = roundHasClosed({
     closed: snapshot.data?.closed ?? false,
     snapshotAt: snapshot.dataUpdatedAt,
-    startedAt: start.submittedAt ?? 0,
+    startedAt: start.submittedAt,
   });
 
-  const startRound = start.mutate;
   const value = useMemo(
-    () => ({ candles, tips, ready, closed, start: startRound }),
-    [candles, tips, ready, closed, startRound],
+    () => ({ candles, tips, ready, closed, round, start: startRound }),
+    [candles, tips, ready, closed, round, startRound],
   );
 
   return (

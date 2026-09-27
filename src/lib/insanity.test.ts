@@ -39,8 +39,16 @@ describe("costOf", () => {
     expect(costOf(88, "dump")).toBe(-0.25);
   });
 
-  it("rounds, so the smallest refund is a number and not a float artifact", () => {
+  it("rounds, so a shrunk refund is a number and not a float artifact", () => {
     expect(costOf(88, "neutral")).toBe(-0.05);
+  });
+
+  it("rounds a refund in the player's favour, not the house's", () => {
+    // `bearish` at Gone is the one value the price list takes past two decimals:
+    // -0.3 * 0.25 is -0.075. JavaScript's `Math.round` breaks ties toward +∞, so
+    // rounding the signed number returns -0.07 and quietly keeps 0.005 of the
+    // refund. Rounding the magnitude gives the half back.
+    expect(costOf(88, "bearish")).toBe(-0.08);
   });
 });
 

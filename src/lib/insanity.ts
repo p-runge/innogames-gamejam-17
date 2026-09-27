@@ -96,16 +96,22 @@ export const BANDS: readonly Band[] = [
 ];
 
 /**
- * Two decimals, the finest the price list can produce: the smallest refund is
- * `neutral` at Gone, which is 0.05.
+ * Two decimals, which is one finer than the price list needs everywhere except
+ * `bearish` at Gone: 0.3 x 0.25 is 0.075, the one value the shrinking refunds
+ * take past two places.
  *
  * Rounded at every step rather than only for display, because the meter is
  * compared against its own ceiling. Summed as raw binary floats, sixty bullish
  * posts land near 35.999999999999996 instead of 36, and the error grows for the
  * rest of the round.
+ *
+ * The magnitude is what gets rounded, not the signed number. `Math.round` breaks
+ * a tie toward positive infinity, so rounding -0.075 directly returns -0.07 and
+ * keeps half a hundredth of the refund — small, but it is the house taking it,
+ * and it would only ever fall on the player.
  */
 function toMeter(value: number): number {
-  return Math.round(value * 100) / 100;
+  return Math.sign(value) * (Math.round(Math.abs(value) * 100) / 100);
 }
 
 /** The band a reading falls in. A boundary belongs to the harsher band. */

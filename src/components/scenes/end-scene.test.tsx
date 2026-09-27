@@ -61,11 +61,15 @@ describe("EndScene", () => {
     expect(onBackToMenu).toHaveBeenCalledTimes(1);
   });
 
-  it("has no way to keep posting", () => {
-    // The composer is gone with the windows, which is what stops a post from
-    // being charged to a meter that has already ended the round.
+  it("offers the menu and nothing else", () => {
+    // Deliberately the whole button list rather than "no Hype button", which no
+    // version of this component could ever have had. An ending that grew a
+    // second way out — a restart, a share — is a change to what the round is
+    // allowed to do next, and should have to say so here.
     render(<EndScene {...round} outcome="insane" cash={12_000} />);
 
-    expect(screen.queryByRole("button", { name: "Hype" })).toBeNull();
+    expect(
+      screen.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Back to menu"]);
   });
 });

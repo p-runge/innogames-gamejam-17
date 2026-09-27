@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Silkscreen } from "next/font/google";
 import GameStateProvider from "~/components/game-state-provider";
+import InformantProvider from "~/components/informant-provider";
 import InsanityProvider from "~/components/insanity-provider";
 import { TRPCReactProvider } from "~/lib/trpc/client";
 import "./globals.css";
@@ -48,7 +49,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               player rather than the market, and it has to outlive a round so the
               menu is what clears it.
             */}
-            <InsanityProvider>{children}</InsanityProvider>
+            <InsanityProvider>
+              {/*
+                Under the meter, because how many messages are invented depends on
+                it, and above both scenes and the desk, because the phone and the
+                sound that announces a message are in different subtrees.
+              */}
+              <InformantProvider>{children}</InformantProvider>
+            </InsanityProvider>
           </GameStateProvider>
         </TRPCReactProvider>
       </body>

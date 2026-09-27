@@ -29,8 +29,16 @@ function tip(id: string): TipPayload {
   };
 }
 
-function Probe({ tips, band }: { tips: TipPayload[]; band: Band }) {
-  const messages = useInformantMessages({ tips, band, at: 600 });
+function Probe({
+  tips,
+  band,
+  round = 1,
+}: {
+  tips: TipPayload[];
+  band: Band;
+  round?: number;
+}) {
+  const messages = useInformantMessages({ tips, band, at: 600, round });
 
   return (
     <ul data-testid="messages">
@@ -107,6 +115,19 @@ describe("useInformantMessages", () => {
     // The phone announces whatever is last, so arrival order has to survive the
     // merge or a real tip would be swallowed by an older lie.
     expect(ids().at(-1)).toBe("b");
+  });
+
+  it("forgets the last round, lies and all", () => {
+    // The phone is mounted on the desk and never unmounts, so without this the
+    // next round opened showing the previous one's messages — and the previous
+    // one's fabrications, which by then have nothing behind them at all.
+    const { rerender } = render(<Probe tips={[tip("a")]} band={gone} round={1} />);
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(ids().length).toBeGreaterThan(1);
+
+    rerender(<Probe tips={[]} band={gone} round={2} />);
+
+    expect(ids()).toEqual([]);
   });
 
   it("does not restart its schedule on every price tick", () => {
