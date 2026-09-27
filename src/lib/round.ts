@@ -1,6 +1,5 @@
 import "server-only";
 
-import { resetDrafts } from "~/lib/feed/drafts";
 import { startSession, stopSession } from "~/lib/market/engine";
 import { resetDesk, startDesk, stopDesk } from "~/lib/news/desk";
 
@@ -30,9 +29,7 @@ export function startRound(): void {
  * is running.
  *
  * The informant's schedule and its promised impulses go too: a tip is a thing
- * this round leaked, and its payout must not reach the next one. The drafted post
- * lines go with them, so the next round's prompts do not argue against lines
- * nobody playing it has seen.
+ * this round leaked, and its payout must not reach the next one.
  */
 export function endRound(): void {
   // First, so a payout armed a second before the bell cannot land on a market
@@ -40,5 +37,4 @@ export function endRound(): void {
   stopDesk();
   stopSession();
   resetDesk();
-  resetDrafts();
 }
