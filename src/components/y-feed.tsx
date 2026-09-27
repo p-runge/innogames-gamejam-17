@@ -2,7 +2,7 @@
 
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import Image from "next/image";
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { POST_COOLDOWN_MS, type YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
@@ -262,23 +262,12 @@ export default function YFeed({
   posts,
   cooling,
   onPost,
-  docked,
   className,
 }: {
   posts: YPost[];
   /** True while the post cooldown runs, during which the buttons are dead. */
   cooling: boolean;
   onPost: (mood: Mood) => void;
-  /**
-   * Something pinned to the bottom-right of the feed, over the posts and clear of
-   * the suggestions.
-   *
-   * A slot rather than a caller placing it absolutely over the whole window: the
-   * suggestion panel's height is its own business and changes with what it offers,
-   * so an offset guessed from outside sits behind it. The feed knows where its
-   * list ends; whatever is docked there does not have to.
-   */
-  docked?: ReactNode;
   className?: string;
 }) {
   // A fresh array, so reversing it leaves the caller's `posts` alone.
@@ -391,7 +380,6 @@ export default function YFeed({
         player's own scrolling, and motion-reduce drops it back to an instant
         jump for anyone who asked the OS for less movement.
       */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={threadRef}
         className="min-h-0 flex-1 overflow-y-auto scroll-smooth motion-reduce:scroll-auto"
@@ -415,19 +403,6 @@ export default function YFeed({
             </li>
           ))}
         </ul>
-      </div>
-
-        {/*
-          Pinned to the thread's bottom edge and outside the scroller, so it
-          stays put while the posts move under it. `pointer-events-none` on the
-          rail keeps the posts behind it clickable; the docked thing takes its
-          own events back.
-        */}
-        {docked && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end px-[3cqw]">
-            <div className="pointer-events-auto">{docked}</div>
-          </div>
-        )}
       </div>
 
       {/*

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Hands from "~/components/hands";
+import Phone from "~/components/phone";
 import Screen from "~/components/screen";
 
 export default function Home() {
@@ -45,6 +46,7 @@ export default function Home() {
           <Screen className="origin-bottom rotate-x-[33.964deg]" />
         </div>
         <Hands />
+        <Phone />
       </div>
     </main>
   );

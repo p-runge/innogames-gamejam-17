@@ -99,12 +99,86 @@ body {
   }
 }
 
+/*
+  The phone taking a message. All three are played by mounting the element that
+  carries them — the call site remounts on the arriving message's id — so there
+  is no state to reset and no animation to cancel.
+*/
+
+/* The buzz against the keyboard. In percentages of the phone's own box, so the
+   throw scales with the photo. */
+@keyframes phone-buzz {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  15% {
+    transform: translate(-0.5%, 0.6%) rotate(-1.2deg);
+  }
+  35% {
+    transform: translate(0.6%, -0.4%) rotate(1.4deg);
+  }
+  55% {
+    transform: translate(-0.5%, 0.4%) rotate(-1deg);
+  }
+  75% {
+    transform: translate(0.35%, -0.25%) rotate(0.6deg);
+  }
+  90% {
+    transform: translate(-0.15%, 0.1%) rotate(-0.25deg);
+  }
+}
+
+/*
+  The screen lighting the phone's edge. Two shadows rather than one: a tight
+  ring reads as the glass catching the light and a wide one as the light
+  reaching the desk, and neither alone looks lit.
+
+  It starts and ends at `none` rather than at the resting shadow, which stays on
+  the image below it — `filter` is a single value, so a frame that named only
+  the glow would drop that shadow for the length of the animation.
+*/
+@keyframes phone-glow {
+  0%,
+  100% {
+    filter: none;
+  }
+  20%,
+  55% {
+    filter: drop-shadow(0 0 0.7cqw var(--color-feed-accent))
+      drop-shadow(0 0 1.8cqw var(--color-feed-accent));
+  }
+}
+
+/* The bubble coming out of the phone, which is what the origin at its own
+   bottom-right corner is for. */
+@keyframes phone-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.8cqw) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /*
     Still the only signal that the buttons are coming back, so it is held at full
     width for the duration rather than removed: a step, not a sweep.
   */
   [data-cooldown] {
+    animation: none;
+  }
+
+  /*
+    Only the movement goes. The glow stays, because it is the one part of the
+    phone's announcement that is not motion — without it a message would arrive
+    with no sign that the phone is the thing to look at.
+  */
+  [data-buzz],
+  [data-message] {
     animation: none;
   }
 }

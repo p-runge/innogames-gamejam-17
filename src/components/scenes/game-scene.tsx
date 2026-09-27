@@ -4,7 +4,6 @@ import { useMutation } from "@tanstack/react-query";
 
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
-import DmDock from "~/components/dm-dock";
 import { useGameState } from "~/components/game-state-provider";
 import Portfolio from "~/components/portfolio";
 import { useSound } from "~/components/sound-provider";
@@ -106,12 +105,6 @@ export default function GameScene() {
         {...SITES.y}
         className="absolute inset-y-0 left-0 w-1/2 overflow-hidden border-r border-terminal-grid"
       >
-        {/*
-          The dock goes through the feed's own docking slot rather than being
-          laid over the window: the suggestion panel's height belongs to the
-          feed and changes with what it offers, so an offset guessed from here
-          would sit behind it.
-        */}
         <YFeed
           posts={posts}
           cooling={cooling}
@@ -119,7 +112,6 @@ export default function GameScene() {
             post(mood, now);
             play("feed-post");
           }}
-          docked={<DmDock tips={tips} ready={ready} />}
           className="h-full w-full"
         />
       </BrowserFrame>
