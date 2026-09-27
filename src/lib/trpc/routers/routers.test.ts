@@ -1,5 +1,5 @@
 import { isTrackedEnvelope } from "@trpc/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getRunId, publish, resetBus } from "~/lib/events/bus";
 import type { GameEvent } from "~/lib/events/types";
 import { resetMarket } from "~/lib/market/engine";
