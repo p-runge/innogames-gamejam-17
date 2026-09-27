@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Silkscreen } from "next/font/google";
 import GameStateProvider from "~/components/game-state-provider";
+import InsanityProvider from "~/components/insanity-provider";
 import { TRPCReactProvider } from "~/lib/trpc/client";
 import "./globals.css";
 
@@ -41,7 +42,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             Wraps the tree rather than sitting beside it: the panels read the
             world from this provider's context, so it has to be an ancestor.
           */}
-          <GameStateProvider>{children}</GameStateProvider>
+          <GameStateProvider>
+            {/*
+              Inside the world's provider and above every scene: the meter is the
+              player rather than the market, and it has to outlive a round so the
+              menu is what clears it.
+            */}
+            <InsanityProvider>{children}</InsanityProvider>
+          </GameStateProvider>
         </TRPCReactProvider>
       </body>
     </html>
