@@ -68,7 +68,7 @@ describe("onEvent", () => {
     expect(received.id).toBe(`${getRunId()}:1`);
     expect(received.event).toMatchObject({
       type: "tweet",
-      payload: { message: "streamed" },
+      payload: { suggestionId: "streamed" },
     });
     controller.abort();
   });
@@ -84,7 +84,7 @@ describe("onEvent", () => {
 
     // "abc" must not replay the buffer and must not swallow live events.
     expect(unwrap((await next).value).event).toMatchObject({
-      payload: { message: "live" },
+      payload: { suggestionId: "live" },
     });
     controller.abort();
   });
@@ -102,7 +102,7 @@ describe("onEvent", () => {
     publish(tweet("live"));
 
     expect(unwrap((await next).value).event).toMatchObject({
-      payload: { message: "live" },
+      payload: { suggestionId: "live" },
     });
     controller.abort();
   });
@@ -142,7 +142,7 @@ describe("onEvent", () => {
     // Resuming "after 1" would hand back the new run's second event. The id
     // belongs to a numbering that no longer exists, so nothing is replayed.
     expect(unwrap((await next).value).event).toMatchObject({
-      payload: { message: "live" },
+      payload: { suggestionId: "live" },
     });
     controller.abort();
   });
@@ -174,7 +174,7 @@ describe("onEvent", () => {
 
     const received = unwrap((await iterator.next()).value);
     expect(received.id).toBe(`${getRunId()}:2`);
-    expect(received.event).toMatchObject({ payload: { message: "two" } });
+    expect(received.event).toMatchObject({ payload: { suggestionId: "two" } });
     controller.abort();
   });
 
@@ -192,7 +192,7 @@ describe("onEvent", () => {
     publish(tweet("live"));
 
     expect(unwrap((await next).value).event).toMatchObject({
-      payload: { message: "live" },
+      payload: { suggestionId: "live" },
     });
     controller.abort();
   });

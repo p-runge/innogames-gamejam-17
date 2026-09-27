@@ -5,31 +5,38 @@ describe("tweetPayloadSchema", () => {
   it("accepts a well-formed tweet", () => {
     const result = tweetPayloadSchema.safeParse({
       username: "gamejam",
-      message: "hello world",
+      suggestionId: "moon-3",
     });
     expect(result.success).toBe(true);
   });
 
-  it("rejects an empty message", () => {
+  it("rejects an empty suggestion id", () => {
     const result = tweetPayloadSchema.safeParse({
       username: "gamejam",
-      message: "",
+      suggestionId: "",
     });
     expect(result.success).toBe(false);
   });
 
-  it("rejects a message longer than 280 characters", () => {
+  it("rejects a suggestion id longer than 40 characters", () => {
     const result = tweetPayloadSchema.safeParse({
       username: "gamejam",
-      message: "x".repeat(281),
+      suggestionId: "x".repeat(41),
     });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a tweet with no suggestion id at all", () => {
+    // The body is not on the wire, so this field is the whole post: without it
+    // the server has nothing to resolve a mood from.
+    const result = tweetPayloadSchema.safeParse({ username: "gamejam" });
     expect(result.success).toBe(false);
   });
 
   it("rejects an empty username", () => {
     const result = tweetPayloadSchema.safeParse({
       username: "",
-      message: "hello",
+      suggestionId: "moon-3",
     });
     expect(result.success).toBe(false);
   });
@@ -39,7 +46,7 @@ describe("gameEventSchema", () => {
   it("accepts a tweet event", () => {
     const result = gameEventSchema.safeParse({
       type: "tweet",
-      payload: { username: "gamejam", message: "hello" },
+      payload: { username: "gamejam", suggestionId: "moon-3" },
     });
     expect(result.success).toBe(true);
   });
@@ -47,7 +54,7 @@ describe("gameEventSchema", () => {
   it("rejects an unknown event type", () => {
     const result = gameEventSchema.safeParse({
       type: "explosion",
-      payload: { username: "gamejam", message: "hello" },
+      payload: { username: "gamejam", suggestionId: "moon-3" },
     });
     expect(result.success).toBe(false);
   });
