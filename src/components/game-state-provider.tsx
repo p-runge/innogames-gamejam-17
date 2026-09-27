@@ -8,6 +8,7 @@ import type { TipPayload } from "~/lib/events/types";
 import { mergeTips } from "~/lib/feed/tips";
 import { joinSeries, mergeCandle } from "~/lib/market/merge";
 import type { Candle } from "~/lib/market/types";
+import { roundHasClosed } from "~/lib/round-outcome";
 import { useTRPC } from "~/lib/trpc/client";
 
 type GameState = {
@@ -118,7 +119,16 @@ export default function GameStateProvider({
   );
 
   const ready = snapshot.isSuccess;
-  const closed = snapshot.data?.closed ?? false;
+  /*
+    Only believed about the round that is running now. `start` opens a new one,
+    and the cached snapshot goes on describing the one before it until the
+    refetch lands — long enough to end the new round on its first frame.
+  */
+  const closed = roundHasClosed({
+    closed: snapshot.data?.closed ?? false,
+    snapshotAt: snapshot.dataUpdatedAt,
+    startedAt: start.submittedAt ?? 0,
+  });
 
   const startRound = start.mutate;
   const value = useMemo(
