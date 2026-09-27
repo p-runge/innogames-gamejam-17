@@ -111,7 +111,7 @@ export function PhoneOnDesk({
         off the bottom edge of the photo — the corner of the keyboard nobody
         types on, which is where a phone gets put down.
       */}
-      <div className="absolute top-[82%] right-[2%] w-[12%]">
+      <div className="absolute top-[74%] right-[2%] w-[26%]">
         {/*
           Remounted on each arriving message, because mounting is what starts a
           CSS animation: there is no state to reset and nothing to key past the
@@ -132,7 +132,7 @@ export function PhoneOnDesk({
               alt=""
               width={776}
               height={760}
-              sizes="12vw"
+              sizes="26vw"
               className="h-auto w-full rotate-[19deg] drop-shadow-[0_0.5cqw_0.7cqw_rgba(0,0,0,0.65)]"
             />
           </div>
