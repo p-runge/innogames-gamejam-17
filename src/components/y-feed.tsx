@@ -12,9 +12,11 @@ import {
 import type { YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
 import {
+  MOOD_WORD,
+  OPENING_MOODS,
+  pickForMood,
+  pickMoods,
   type Suggestion,
-  SUGGESTIONS_SHOWN,
-  suggestionsAt,
 } from "~/lib/feed/suggestions";
 import type { Mood } from "~/lib/market/types";
 import { formatClock } from "~/lib/trading-session";
@@ -54,18 +56,17 @@ function Avatar({ post }: { post: Pick<YPost, "author" | "handle"> }) {
 export const POST_EVENT = "y-post";
 
 /**
- * How a mood reads in the suggestion panel. The arrows are the whole tutorial:
- * the player has to be able to see which line pushes the price which way before
- * clicking it, or picking one is guesswork.
+ * How a mood reads on its button. The arrow and the color are the whole tutorial:
+ * the word says how it sounds, and these say which way it pushes the price, so
+ * pressing one is a decision rather than a guess.
  */
-const MOOD_MARK: Record<Mood, { arrow: string; color: string; label: string }> =
-  {
-    dump: { arrow: "▼▼", color: "#f4212e", label: "Dump" },
-    bearish: { arrow: "▼", color: "#e0723c", label: "Bearish" },
-    neutral: { arrow: "—", color: "#8b98a5", label: "Neutral" },
-    bullish: { arrow: "▲", color: "#3fb950", label: "Bullish" },
-    moon: { arrow: "▲▲", color: "#00d084", label: "Moon" },
-  };
+const MOOD_MARK: Record<Mood, { arrow: string; color: string }> = {
+  dump: { arrow: "▼▼", color: "#f4212e" },
+  bearish: { arrow: "▼", color: "#e0723c" },
+  neutral: { arrow: "—", color: "#8b98a5" },
+  bullish: { arrow: "▲", color: "#3fb950" },
+  moon: { arrow: "▲▲", color: "#00d084" },
+};
 
 const compact = new Intl.NumberFormat("en", { notation: "compact" });
 
@@ -293,13 +294,18 @@ export default function YFeed({
   className?: string;
 }) {
   /*
-    Where in the pool the offered suggestions start. Advanced past the three on
-    offer after each post, so the player is not looking at the line they just
-    used — and an offset rather than a random pick because this renders on the
-    server too, where `Math.random()` is a hydration mismatch.
+    The three words currently on offer. Starts from the authored opening hand so
+    the server's HTML and the first client render agree, and is redrawn on every
+    post from there.
   */
-  const [offset, setOffset] = useState(0);
-  const suggestions = suggestionsAt(offset);
+  const [offered, setOffered] = useState<readonly Mood[]>(OPENING_MOODS);
+
+  /*
+    The line each button posted last, so the next press of the same button draws
+    something else. A ref and not state: nothing on screen reads it, and as state
+    every post would re-render the panel to no visible effect.
+  */
+  const lastPosted = useRef<Partial<Record<Mood, string>>>({});
 
   // The rest element is a fresh array, so reversing it in place leaves `posts`
   // alone.
@@ -413,12 +419,22 @@ export default function YFeed({
     enableAnimation(posts.length > 1);
   }, [enableAnimation, posts.length]);
 
-  const submit = (suggestion: Suggestion) => {
+  /**
+   * Post one line of the mood the player pressed. The word on the button is the
+   * choice; which of its lines goes out is the game's to make.
+   */
+  const submit = (mood: Mood) => {
+    const suggestion: Suggestion = pickForMood(mood, lastPosted.current[mood]);
+    lastPosted.current[mood] = suggestion.id;
+
     // The player's own post always pulls the thread down to it, whether or not
     // they had scrolled away to read older ones.
     followOwnPost.current = true;
     onPost(suggestion);
-    setOffset((previous) => previous + SUGGESTIONS_SHOWN);
+
+    // A new hand for the next post, so what the player can say keeps moving with
+    // the price rather than being the same three words all round.
+    setOffered(pickMoods());
 
     // What the hands overlay taps to. Dispatched here rather than in the overlay
     // so the animation follows the post itself, not a click that was ignored.
@@ -497,42 +513,52 @@ export default function YFeed({
         the border its own line — without the background it was whatever row
         happened to be underneath.
       */}
-      <div className="relative z-10 shrink-0 border-t border-feed-line bg-feed-surface px-[3cqw] py-[2.2cqw]">
-        <div className="flex items-center gap-[2.2cqw]">
+      <div className="relative z-10 shrink-0 border-t border-feed-line bg-feed-surface px-[3cqw] py-[1.6cqw]">
+        {/*
+          Label and buttons on one line, so the panel costs the thread a single
+          row's height instead of two stacked ones. The label holds its width and
+          the buttons take what is left.
+        */}
+        <div className="flex items-center gap-[2cqw]">
           <Avatar post={{ author: "You", handle: "@you" }} />
-          <span className="text-[2.4cqw] font-bold text-feed-muted">
-            Post one of these
+          <span className="shrink-0 text-[2.4cqw] font-bold text-feed-muted">
+            Say something
           </span>
-        </div>
-        <ul className="mt-[1.8cqw] flex flex-col gap-[1.4cqw]">
-          {suggestions.map((suggestion) => {
-            const mark = MOOD_MARK[suggestion.mood];
+          {/*
+            The hand on offer, three of the five, still in sell-to-buy order.
+            Equal fractions rather than flex-basis, so the buttons stay the same
+            width whatever words land in them — a row that resized itself per hand
+            would move under the cursor on every post.
+          */}
+          <ul className="grid min-w-0 flex-1 grid-cols-3 gap-[1.2cqw]">
+            {offered.map((mood) => {
+              const mark = MOOD_MARK[mood];
 
-            return (
-              <li key={suggestion.id}>
-                <button
-                  type="button"
-                  onClick={() => submit(suggestion)}
-                  // The mood is in the accessible name as a word, because the
-                  // arrows beside it are decoration a screen reader cannot read.
-                  aria-label={`Post "${suggestion.body}" — ${mark.label}`}
-                  className="flex w-full items-center gap-[2cqw] rounded-[2cqw] border border-feed-line px-[2.6cqw] py-[1.6cqw] text-left hover:bg-feed-line/40 focus-visible:outline-2 focus-visible:outline-feed-accent"
-                >
-                  <span
-                    aria-hidden
-                    className="w-[6cqw] shrink-0 text-center text-[2.6cqw] leading-none font-black"
-                    style={{ color: mark.color }}
+              return (
+                <li key={mood} className="flex">
+                  <button
+                    type="button"
+                    onClick={() => submit(mood)}
+                    // Arrow beside the word rather than above it: in one shared
+                    // row the stacked version set the whole panel's height.
+                    className="flex w-full items-center justify-center gap-[0.8cqw] rounded-full border border-feed-line px-[1.2cqw] py-[1.1cqw] hover:bg-feed-line/40 focus-visible:outline-2 focus-visible:outline-feed-accent"
                   >
-                    {mark.arrow}
-                  </span>
-                  <span className="min-w-0 flex-1 text-[2.6cqw] leading-snug">
-                    {suggestion.body}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    <span
+                      aria-hidden
+                      className="text-[2cqw] leading-none font-black"
+                      style={{ color: mark.color }}
+                    >
+                      {mark.arrow}
+                    </span>
+                    <span className="truncate text-[2.4cqw] leading-none font-bold">
+                      {MOOD_WORD[mood]}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     </div>
   );
