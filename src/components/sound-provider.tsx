@@ -25,9 +25,10 @@ type SoundMachine = {
   /**
    * Start the background loop.
    *
-   * Must be reached from a click: browsers refuse audio until the page has been
-   * interacted with, and a loop started on page load would be silently killed
-   * on most of them. The Start Game button is that click.
+   * Must be reached from a click: browsers hold a new audio context suspended
+   * until the page has been interacted with, and a loop started on page load
+   * would be silently killed on most of them. The Start Game button is that
+   * click.
    */
   startMusic: () => void;
   muted: boolean;
@@ -36,12 +37,55 @@ type SoundMachine = {
 
 const SoundContext = createContext<SoundMachine | null>(null);
 
+/** Everything the machine needs once the browser has let it make sound. */
+type Engine = {
+  context: AudioContext;
+  /** Everything audible passes through here, so mute is one gain. */
+  master: GainNode;
+  buffers: Map<SoundId, AudioBuffer>;
+  music: AudioBuffer | null;
+};
+
+/** Where the running loop is kept, so it is started and stopped exactly once. */
+type SourceHolder = { current: AudioBufferSourceNode | null };
+
+/**
+ * Put the loop on, unless it is already running or its file has not arrived.
+ *
+ * Outside the component because both the mount effect and the start button call
+ * it, and a function redefined per render would either have to be a dependency
+ * of an effect that must run once or be left out of one that lints for it.
+ */
+function startLoop(state: Engine, running: SourceHolder): void {
+  if (!state.music || running.current) return;
+
+  const source = state.context.createBufferSource();
+  source.buffer = state.music;
+  source.loop = true;
+
+  const level = state.context.createGain();
+  level.gain.value = MUSIC.volume;
+
+  source.connect(level);
+  level.connect(state.master);
+  source.start();
+  running.current = source;
+}
+
 /**
  * The game's sound machine: one background loop and a set of one-shot effects.
  *
- * It owns every `HTMLAudioElement` on the page. Components ask for a sound by
- * name and never touch an element, which is what lets mute be a single switch
- * rather than a prop threaded through the scene.
+ * Built on Web Audio rather than on `Audio` elements. An element decodes its
+ * file every time it is played, so the previous version created a decoder per
+ * coin — audible as crackle once a few of them overlapped — and could not loop
+ * an mp3 without a gap at the seam, because the format carries encoder padding
+ * the element plays through. Here every file is decoded once into a buffer;
+ * playing it is then a node reading memory, and a looping buffer repeats
+ * sample-exactly with nothing in between.
+ *
+ * It owns the audio graph. Components ask for a sound by name and never touch a
+ * node, which is what lets mute be a single gain rather than a prop threaded
+ * through the scene.
  */
 export default function SoundProvider({
   children,
@@ -55,39 +99,67 @@ export default function SoundProvider({
   );
 
   const gate = useMemo(() => createPlayGate(), []);
-
-  /**
-   * One preloaded element per effect, cloned at play time.
-   *
-   * Preloaded because the first buy must not be the moment the file starts
-   * downloading, and cloned because restarting a single element cuts off the
-   * copy already playing — two coins landing a moment apart should overlap.
-   */
-  const templates = useRef(new Map<SoundId, HTMLAudioElement>());
-
-  /** Timers that cut long clips short; cleared on unmount so none outlive the page. */
-  const trims = useRef(new Set<number>());
-
-  const music = useRef<HTMLAudioElement | null>(null);
-  /** Whether the round has started. Mute pauses the loop; this says to resume it. */
+  const engine = useRef<Engine | null>(null);
+  /** Whether the round has started, so mute can put the loop back afterwards. */
   const musicWanted = useRef(false);
+  const musicSource = useRef<AudioBufferSourceNode | null>(null);
 
   useEffect(() => {
-    const loaded = templates.current;
+    // Constructed here rather than on the first click: decoding may take a
+    // moment and a suspended context decodes just as well as a running one, so
+    // the work is done by the time anything asks for a sound.
+    const context = new AudioContext();
+    const master = context.createGain();
+    master.gain.value = getMuted() ? 0 : 1;
+    master.connect(context.destination);
 
-    for (const [id, sound] of Object.entries(SOUNDS)) {
-      const audio = new Audio(sound.src);
-      audio.preload = "auto";
-      loaded.set(id as SoundId, audio);
-    }
+    const state: Engine = { context, master, buffers: new Map(), music: null };
+    engine.current = state;
 
-    const timers = trims.current;
+    let dropped = false;
+
+    const load = async (src: string) => {
+      const response = await fetch(src);
+      return context.decodeAudioData(await response.arrayBuffer());
+    };
+
+    void (async () => {
+      const decoded = await Promise.all(
+        Object.entries(SOUNDS).map(async ([id, sound]) => {
+          try {
+            return [id as SoundId, await load(sound.src)] as const;
+          } catch (error) {
+            // One unreadable file should cost its own sound and nothing else.
+            // Silent once the context is gone: closing it mid-decode rejects
+            // every request in flight, and `next dev` mounts twice on purpose.
+            if (!dropped) console.error("could not decode", sound.src, error);
+            return null;
+          }
+        }),
+      );
+      if (dropped) return;
+      for (const entry of decoded) {
+        if (entry) state.buffers.set(entry[0], entry[1]);
+      }
+
+      try {
+        const music = await load(MUSIC.src);
+        if (dropped) return;
+        state.music = music;
+        // The round can begin before a 40-second file has arrived, so the loop
+        // starts itself if it was already asked for.
+        if (musicWanted.current) startLoop(state, musicSource);
+      } catch (error) {
+        if (!dropped) console.error("could not decode", MUSIC.src, error);
+      }
+    })();
 
     return () => {
-      for (const timer of timers) window.clearTimeout(timer);
-      timers.clear();
-      loaded.clear();
-      music.current?.pause();
+      dropped = true;
+      musicSource.current?.stop();
+      musicSource.current = null;
+      engine.current = null;
+      void context.close();
     };
   }, []);
 
@@ -99,26 +171,29 @@ export default function SoundProvider({
       // timers on every toggle.
       if (getMuted()) return;
 
+      const state = engine.current;
       const sound = SOUNDS[id];
+      const buffer = state?.buffers.get(id);
+      // Missing only in the seconds before the file has been decoded.
+      if (!state || !buffer) return;
+
       if (!gate.allows(id, sound.cooldownMs, Date.now())) return;
 
-      const template = templates.current.get(id);
-      const node =
-        (template?.cloneNode() as HTMLAudioElement | undefined) ??
-        new Audio(sound.src);
-      node.volume = sound.volume;
+      const source = state.context.createBufferSource();
+      source.buffer = buffer;
 
-      // Rejects when the browser has not seen a gesture yet, which is a sound
-      // that was never going to be heard rather than a fault to report.
-      void node.play().catch(() => {});
+      // Its own gain, so one sound's place in the mix cannot be heard on the
+      // next one — a shared node would have to be re-set on every play and
+      // would ride over whatever is still sounding.
+      const level = state.context.createGain();
+      level.gain.value = sound.volume;
 
-      if (sound.maxMs !== undefined) {
-        const timer = window.setTimeout(() => {
-          node.pause();
-          trims.current.delete(timer);
-        }, sound.maxMs);
-        trims.current.add(timer);
-      }
+      source.connect(level);
+      level.connect(state.master);
+      // Nothing holds a reference afterwards: a source node is single-use and
+      // disconnects itself when it ends.
+      source.onended = () => level.disconnect();
+      source.start();
     },
     [gate],
   );
@@ -126,23 +201,28 @@ export default function SoundProvider({
   const startMusic = useCallback(() => {
     musicWanted.current = true;
 
-    music.current ??= Object.assign(new Audio(MUSIC.src), {
-      loop: true,
-      volume: MUSIC.volume,
-    });
+    const state = engine.current;
+    if (!state) return;
 
-    if (getMuted()) return;
-    void music.current.play().catch(() => {});
+    // The click that got here is the gesture the context was waiting for.
+    void state.context.resume();
+    startLoop(state, musicSource);
   }, []);
 
-  // The loop is the one sound that survives being muted — it is paused and
-  // resumed rather than stopped, so unmuting mid-round does not restart the day.
+  // Mute is one gain on the master, and the loop keeps running behind it. It is
+  // a long piece of music: stopping it would mean starting the day over on every
+  // toggle, and a buffer source cannot be paused and picked back up.
   useEffect(() => {
-    const audio = music.current;
-    if (!audio) return;
+    const state = engine.current;
+    if (!state) return;
 
-    if (muted) audio.pause();
-    else if (musicWanted.current) void audio.play().catch(() => {});
+    // Ramped rather than set: an instant jump between two levels is a step in
+    // the waveform, which is exactly the click this rewrite is removing.
+    const { gain } = state.master;
+    const now = state.context.currentTime;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    gain.linearRampToValueAtTime(muted ? 0 : 1, now + 0.03);
   }, [muted]);
 
   const toggleMuted = useCallback(() => setMuted(!getMuted()), []);
