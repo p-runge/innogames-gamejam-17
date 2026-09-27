@@ -2,7 +2,7 @@
 
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import Image from "next/image";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { POST_COOLDOWN_MS, type YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
@@ -276,19 +276,8 @@ export default function YFeed({
   const threadRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<HTMLDivElement>(null);
 
-  const [animateRef, enableAnimation] = useAutoAnimate<HTMLUListElement>();
-  const listElement = useRef<HTMLUListElement>(null);
-  /*
-    useAutoAnimate hands back a ref callback, and the ResizeObserver below needs
-    the node too, so the list gets one callback that feeds both.
-  */
-  const setListRef = useCallback(
-    (node: HTMLUListElement | null) => {
-      listElement.current = node;
-      animateRef(node);
-    },
-    [animateRef],
-  );
+  /* Slides an arriving post into the thread instead of making it appear. */
+  const [listRef] = useAutoAnimate<HTMLUListElement>();
 
   /*
     Set on submit and consumed by the effect below, because the new post is not
@@ -330,14 +319,6 @@ export default function YFeed({
   }, []);
 
 
-  /*
-    Animation stays off while the feed is empty, so the first post of a round
-    appears rather than animating in from nothing. Every post after it slides in.
-  */
-  useEffect(() => {
-    enableAnimation(posts.length > 0);
-  }, [enableAnimation, posts.length]);
-  const [parent] = useAutoAnimate(/* optional config */)
   /**
    * Post in the mood the player pressed. The word on the button is the choice;
    * which line carries it belongs to the caller.
@@ -396,7 +377,7 @@ export default function YFeed({
           suggestion panel below it. Dividers draw between posts only, so the list
           ends without a rule.
         */}
-        <ul ref={parent} className="divide-y divide-feed-line">
+        <ul ref={listRef} className="divide-y divide-feed-line">
           {newestFirst.map((post) => (
             <li key={post.id}>
               <Post post={post} />
