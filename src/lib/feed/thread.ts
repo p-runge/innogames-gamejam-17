@@ -1,5 +1,3 @@
-import { OPENING_POST } from "~/lib/feed/opening-post";
-
 export type FeedPost = {
   id: string;
   author: string;
@@ -17,15 +15,16 @@ export type FeedPost = {
 };
 
 /**
- * The whole thread the feed renders: the opening post, then the player's own
- * posts in clock order.
+ * The feed the player is posting into: their own posts, in clock order.
  *
- * The player's posts are held locally and optimistically, so they appear the
- * moment they are typed rather than after a server round trip. The opening post
- * is prepended rather than sorted in, because it must hold `posts[0]` — y-feed
- * renders that slot as the thread's subject, and a post stamped at the session
- * open would otherwise take it.
+ * A flat feed and not a thread. There is no subject post at the top any more —
+ * every row is the same kind of thing, and the space it used to hold goes to the
+ * posts instead.
+ *
+ * The posts are held locally and optimistically, so one appears the moment it is
+ * pressed rather than after a server round trip. Sorted on a copy, because the
+ * caller keeps the array this is built from.
  */
 export function buildThread(mine: FeedPost[]): FeedPost[] {
-  return [OPENING_POST, ...[...mine].sort((a, b) => a.at - b.at)];
+  return [...mine].sort((a, b) => a.at - b.at);
 }

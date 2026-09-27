@@ -34,8 +34,10 @@ const LEDGER_SHOWN = 6;
 */
 const SITES = {
   y: {
-    url: "y.com/whisper/status/1840022",
-    tabTitle: "Market Whisper on Y: “Something is happening…”",
+    // A search rather than a status: there is no subject post to be looking at
+    // any more, just the INNO feed.
+    url: `y.com/search?q=%24${SYMBOL}`,
+    tabTitle: `$${SYMBOL} on Y`,
     favicon: { label: "Y", color: "#1d9bf0" },
   },
   terminal: {

@@ -206,38 +206,7 @@ function HeaderNav() {
   );
 }
 
-/*
-  The opening post gets the conversation-view treatment: the handle drops below
-  the name, the body is set larger, and the timestamp sits on its own line above
-  the counts.
-*/
-function RootPost({ post }: { post: YPost }) {
-  return (
-    <article className="border-b border-feed-line px-[3cqw] py-[2.6cqw]">
-      <div className="flex items-center gap-[2.2cqw]">
-        <Avatar post={post} />
-        <div className="min-w-0">
-          <div className="truncate text-[2.7cqw] leading-tight font-bold">
-            {post.author}
-          </div>
-          <div className="truncate text-[2.7cqw] leading-tight text-feed-muted">
-            {post.handle}
-          </div>
-        </div>
-      </div>
-      <p className="mt-[2.4cqw] text-[3.4cqw] leading-normal">{post.body}</p>
-      <div className="mt-[1.8cqw] text-[2.4cqw] text-feed-muted tabular-nums">
-        {formatClock(post.at)}
-      </div>
-      <Engagement
-        post={post}
-        className="mt-[2cqw] border-t border-feed-line pt-[2cqw]"
-      />
-    </article>
-  );
-}
-
-function Reply({ post }: { post: YPost }) {
+function Post({ post }: { post: YPost }) {
   return (
     <article className="flex gap-[2.2cqw] px-[3cqw] py-[2.4cqw] hover:bg-feed-hover">
       <Avatar post={post} />
@@ -258,14 +227,14 @@ function Reply({ post }: { post: YPost }) {
 }
 
 /**
- * Y — the thread the trading day is arguing in. The opening post sits at the
- * top as the thread's subject, and the player's own posts join the same list so
- * they read as part of the conversation rather than a separate log.
+ * Y — the feed the trading day is shouting into. A flat list of the player's own
+ * posts, with no subject post pinned above them: every row is the same kind of
+ * thing, and the room that pinned post used to take goes to the posts.
  *
- * Posts render newest first, directly under the opening post, so an arriving
- * post lands where the reader is already looking instead of off the bottom edge.
- * `posts` stays in clock order — the reversal is a rendering decision and the
- * thread that feeds it keeps reading chronologically.
+ * Posts render newest first, at the top, so an arriving post lands where the
+ * reader is already looking instead of off the bottom edge. `posts` stays in clock
+ * order — the reversal is a rendering decision and the list that feeds it keeps
+ * reading chronologically.
  */
 export default function YFeed({
   posts,
@@ -279,21 +248,19 @@ export default function YFeed({
   cooling: boolean;
   onPost: (mood: Mood) => void;
   /**
-   * Something pinned to the bottom-right of the thread, over the posts and
-   * clear of the suggestions.
+   * Something pinned to the bottom-right of the feed, over the posts and clear of
+   * the suggestions.
    *
-   * A slot rather than a caller placing it absolutely over the whole window:
-   * the suggestion panel's height is its own business and changes with what it
-   * offers, so an offset guessed from outside sits behind it. The feed knows
-   * where its thread ends; whatever is docked there does not have to.
+   * A slot rather than a caller placing it absolutely over the whole window: the
+   * suggestion panel's height is its own business and changes with what it offers,
+   * so an offset guessed from outside sits behind it. The feed knows where its
+   * list ends; whatever is docked there does not have to.
    */
   docked?: ReactNode;
   className?: string;
 }) {
-  // The rest element is a fresh array, so reversing it in place leaves `posts`
-  // alone.
-  const [root, ...rest] = posts;
-  const replies = rest.reverse();
+  // A fresh array, so reversing it leaves the caller's `posts` alone.
+  const newestFirst = [...posts].reverse();
 
   const threadRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<HTMLDivElement>(null);
@@ -382,29 +349,22 @@ export default function YFeed({
     const own = followOwnPost.current;
     followOwnPost.current = false;
 
-    // The player's own post always pulls the thread back up to it; a reply from
-    // the crowd only does so if the reader was at the top anyway.
+    // A post the player just made always pulls the feed back up to it; anything
+    // else only does so if the reader was at the top anyway.
     if (own || atTop.current) scrollToStart();
   }, [posts, scrollToStart]);
 
   /*
-    Animation stays off until the thread has replies in it, and the comparison is
-    against 1 rather than 0 because the seeded opening post is always there.
-
-    The feed mounts with that post alone and the server's history lands a render
-    later. This effect runs after the first render and before that second one, so
-    the batch arrives with animation still off — otherwise every post already in
-    the round flies in one after another on load, twenty of them after a
-    mid-round reload. The cost is that the very first reply of a fresh round
-    appears without animating, which nobody is watching for.
+    Animation stays off while the feed is empty, so the first post of a round
+    appears rather than animating in from nothing. Every post after it slides in.
   */
   useEffect(() => {
-    enableAnimation(posts.length > 1);
+    enableAnimation(posts.length > 0);
   }, [enableAnimation, posts.length]);
 
   /**
    * Post in the mood the player pressed. The word on the button is the choice;
-   * which line carries it, and the hand that follows, belong to the caller.
+   * which line carries it belongs to the caller.
    */
   const submit = (mood: Mood) => {
     if (cooling) return;
@@ -449,23 +409,22 @@ export default function YFeed({
         ref={threadRef}
         className="min-h-0 flex-1 overflow-y-auto scroll-smooth motion-reduce:scroll-auto"
       >
-        {root && <RootPost post={root} />}
         {/*
           The sentinel the IntersectionObserver above watches. It marks where the
-          newest reply lands, which is what "the reader is at the top" means; a
+          newest post lands, which is what "the reader is at the top" means; a
           zero-height element cannot intersect, so it needs the pixel.
         */}
         <div ref={startRef} aria-hidden className="h-px" />
         {/*
-          divide-y rather than a border-b per row: the oldest reply now sits at
-          the bottom of the list, and its own bottom border would run across the
-          composer below it. Dividers draw between replies only, so the list ends
-          without a rule.
+          divide-y rather than a border-b per row: the oldest post sits at the
+          bottom of the list, and its own bottom border would run across the
+          suggestion panel below it. Dividers draw between posts only, so the list
+          ends without a rule.
         */}
         <ul ref={setListRef} className="divide-y divide-feed-line">
-          {replies.map((reply) => (
-            <li key={reply.id}>
-              <Reply post={reply} />
+          {newestFirst.map((post) => (
+            <li key={post.id}>
+              <Post post={post} />
             </li>
           ))}
         </ul>
