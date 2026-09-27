@@ -15,6 +15,7 @@ import { MOOD_ORDER, MOOD_WORD } from "~/lib/feed/suggestions";
 import type { Mood } from "~/lib/market/types";
 import { formatClock } from "~/lib/trading-session";
 
+
 /*
   Avatars stand in for photos, so they take their color from the handle — the
   same account is the same color every render, and on the server too.
@@ -362,6 +363,7 @@ export default function YFeed({
     enableAnimation(posts.length > 0);
   }, [enableAnimation, posts.length]);
 
+  const [parent] = useAutoAnimate(/* optional config */)
   /**
    * Post in the mood the player pressed. The word on the button is the choice;
    * which line carries it belongs to the caller.
@@ -414,16 +416,17 @@ export default function YFeed({
           newest post lands, which is what "the reader is at the top" means; a
           zero-height element cannot intersect, so it needs the pixel.
         */}
-        <div ref={startRef} aria-hidden className="h-px" />
+        <div aria-hidden className="h-px" />
         {/*
           divide-y rather than a border-b per row: the oldest post sits at the
           bottom of the list, and its own bottom border would run across the
           suggestion panel below it. Dividers draw between posts only, so the list
           ends without a rule.
         */}
-        <ul ref={setListRef} className="divide-y divide-feed-line">
+        <ul ref={parent} className="divide-y divide-feed-line">
           {newestFirst.map((post) => (
             <li key={post.id}>
+              
               <Post post={post} />
             </li>
           ))}
