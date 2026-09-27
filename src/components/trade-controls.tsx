@@ -1,25 +1,30 @@
 "use client";
 
-import { useState } from "react";
-
 import type { TradeSide } from "~/hooks/use-portfolio";
 import { cn } from "~/lib/cn";
 import { euro } from "~/lib/money";
 
 const SIDES: TradeSide[] = ["buy", "sell"];
 
+/** Every order is one share. The ticket has no size to choose any more. */
+const TRADE_SIZE = 1;
+
 /**
- * The order ticket under the chart: a buy/sell switch that decides what the
- * three size buttons do. Holding the side in a switch rather than doubling the
- * buttons keeps one row of controls and makes the current mode unmistakable —
- * which matters when the thing being clicked spends the player's money.
+ * The order ticket under the chart: buy one, or sell one.
+ *
+ * The switch and the three size buttons it fed are both gone. They asked for two
+ * decisions — a direction and an amount — where the game only ever wanted the
+ * first, and the amount was the one being made with the least thought while the
+ * price was moving. Each button now is the whole order.
+ *
+ * A position is built by pressing one of them repeatedly, which is also what makes
+ * the cost of a position something the player feels rather than types.
  */
 export default function TradeControls({
   symbol,
   price,
   cash,
   shares,
-  quantities = [1, 5, 25],
   onTrade,
   className,
 }: {
@@ -28,16 +33,12 @@ export default function TradeControls({
   price: number | undefined;
   cash: number;
   shares: number;
-  quantities?: number[];
   onTrade: (side: TradeSide, quantity: number) => void;
   className?: string;
 }) {
-  const [side, setSide] = useState<TradeSide>("buy");
-
-  const buying = side === "buy";
-  const canTrade = (quantity: number) =>
+  const canTrade = (side: TradeSide) =>
     price !== undefined &&
-    (buying ? quantity * price <= cash : quantity <= shares);
+    (side === "buy" ? TRADE_SIZE * price <= cash : TRADE_SIZE <= shares);
 
   return (
     <div
@@ -46,59 +47,78 @@ export default function TradeControls({
         className,
       )}
     >
+      {/*
+        shrink-0, and it is load-bearing. A flex child may shrink below its
+        content width by default, and the readout sharing this row grows and
+        shrinks four times a second as the price ticks — every time its euro
+        string changes length, the space left for these two changes with it, and
+        the buttons were being squeezed a hair narrower and let back out again.
+
+        It looks like a hover effect because the cursor is sitting on them when it
+        happens. It is not one, and nothing here transforms: the row is simply
+        being re-divided under them.
+      */}
       <div
         role="group"
-        aria-label="Order side"
-        className="flex overflow-hidden rounded-[0.8cqw] border border-terminal-grid text-[2.4cqw]"
+        aria-label="Order"
+        className="flex shrink-0 gap-[1.6cqw]"
       >
-        {SIDES.map((option) => {
-          const selected = option === side;
-
-          return (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => setSide(option)}
-              className={cn(
-                "px-[3cqw] py-[1cqw] tracking-[0.15em] uppercase",
-                !selected && "text-terminal-muted hover:text-white",
-                // Green for buy and red for sell is the same direction language
-                // the candles and the ledger use; the label says which it is,
-                // so the color is never the only thing carrying it.
-                selected && (option === "buy" ? "bg-up" : "bg-down"),
-                selected && "text-white",
-              )}
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex gap-[1.6cqw]">
-        {quantities.map((quantity) => (
+        {SIDES.map((side) => (
           <button
-            key={quantity}
+            key={side}
             type="button"
-            disabled={!canTrade(quantity)}
+            disabled={!canTrade(side)}
             /*
-              The visible label is only a number, so the accessible name has to
-              carry the verb — and it changes with the switch.
+              The visible label is only the verb, so the accessible name carries
+              the size and the symbol the verb is about.
             */
-            aria-label={`${buying ? "Buy" : "Sell"} ${quantity} ${symbol}`}
-            onClick={() => onTrade(side, quantity)}
+            aria-label={`${side === "buy" ? "Buy" : "Sell"} ${TRADE_SIZE} ${symbol}`}
+            onClick={() => onTrade(side, TRADE_SIZE)}
             className={cn(
-              "rounded-[0.8cqw] border border-terminal-grid px-[3cqw] py-[1cqw] text-[2.4cqw] tabular-nums text-white",
-              "enabled:hover:border-white disabled:opacity-30",
+              // shrink-0 again on each button, for the same reason as the group
+              // around them: whatever width the row hands this pair, the two of
+              // them keep the width their own padding and label ask for.
+              "shrink-0 rounded-[0.8cqw] px-[4cqw] py-[1cqw] text-[2.4cqw] text-white uppercase",
+              // Green for buy and red for sell is the same direction language the
+              // candles and the ledger use; the word says which it is, so the
+              // color is never the only thing carrying it.
+              //
+              // Worn permanently now rather than only while selected. These are
+              // two actions, not two settings — there is no longer a state where
+              // one of them is the chosen one and the other is waiting.
+              /*
+                Hover darkens the fill and does nothing else.
+
+                Two earlier attempts at it both read as the button changing size,
+                for different reasons. A brightness filter promotes the button to
+                its own compositing layer, and at the fractional pixel positions
+                these cqw paddings land on, re-rasterising there can hand an edge
+                back a pixel wider or narrower than it was. An inset ring keeps
+                the geometry but paints a white rim inside the border box, which
+                takes a bite out of the colored area and reads as a shrink.
+
+                Background alpha does neither. It changes one paint value on a
+                layer that already exists, and the colored rectangle stays exactly
+                where it was.
+              */
+              side === "buy"
+                ? "bg-up enabled:hover:bg-up/80"
+                : "bg-down enabled:hover:bg-down/80",
+              "disabled:opacity-30",
             )}
           >
-            {quantity}
+            {side}
           </button>
         ))}
       </div>
 
-      <div className="ml-auto text-right text-[2.2cqw] text-terminal-muted">
+      {/*
+        whitespace-nowrap, because this string changes length four times a second
+        as the price ticks and it is the only thing in the row long enough to
+        wrap. A wrap adds a second line, the bar gets taller, and the chart above
+        gives up the height — the whole ticket appears to resize on its own.
+      */}
+      <div className="ml-auto text-right text-[2.2cqw] whitespace-nowrap text-terminal-muted">
         Position{" "}
         <span className="tabular-nums text-white">
           {shares}
