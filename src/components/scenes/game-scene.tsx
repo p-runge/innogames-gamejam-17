@@ -7,8 +7,14 @@ import CandleChart from "~/components/candle-chart";
 import DmDock from "~/components/dm-dock";
 import { useGameState } from "~/components/game-state-provider";
 import Portfolio from "~/components/portfolio";
+import { useSound } from "~/components/sound-provider";
 import TradeControls from "~/components/trade-controls";
 import YFeed from "~/components/y-feed";
+import {
+  useIdleSfx,
+  useMarketSfx,
+  useTipSfx,
+} from "~/hooks/use-ambient-sfx";
 import { useMarketFeed } from "~/hooks/use-market-feed";
 import { usePortfolio } from "~/hooks/use-portfolio";
 import { useYThread } from "~/hooks/use-y-thread";
@@ -55,9 +61,15 @@ export default function GameScene() {
   const trpc = useTRPC();
   const candles = useMarketFeed();
   const { tips, ready } = useGameState();
-  const { cash, shares, transactions, startingCash, trade } = usePortfolio({
-    symbol: SYMBOL,
-  });
+  const { play } = useSound();
+  const { cash, shares, transactions, startingCash, avgCost, trade } =
+    usePortfolio({ symbol: SYMBOL });
+
+  // The three things that make a sound without anyone pressing for it: the
+  // market moving hard, a tip landing, and nothing happening at all.
+  useMarketSfx(candles);
+  useTipSfx({ count: tips.length, ready });
+  useIdleSfx();
 
   // The post is rendered optimistically, so a failure here costs the broadcast
   // and nothing else. Logged rather than surfaced: a game jam round is more
@@ -103,7 +115,10 @@ export default function GameScene() {
         <YFeed
           posts={posts}
           cooling={cooling}
-          onPost={(mood) => post(mood, now)}
+          onPost={(mood) => {
+            post(mood, now);
+            play("feed-post");
+          }}
           docked={<DmDock tips={tips} ready={ready} />}
           className="h-full w-full"
         />
@@ -131,7 +146,17 @@ export default function GameScene() {
               cash={cash}
               shares={shares}
               onTrade={(side, quantity) => {
-                if (price !== undefined) trade(side, quantity, price);
+                if (price === undefined) return;
+                trade(side, quantity, price);
+                // Buying is money leaving; selling is the moment he finds out
+                // whether the position was worth holding.
+                play(
+                  side === "buy"
+                    ? "trade-buy"
+                    : price >= avgCost
+                      ? "sell-profit"
+                      : "sell-loss",
+                );
               }}
               className="border-t border-terminal-grid"
             />

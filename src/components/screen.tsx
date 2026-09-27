@@ -3,8 +3,10 @@
 import { useState } from "react";
 
 import { useGameState } from "~/components/game-state-provider";
+import MuteToggle from "~/components/mute-toggle";
 import GameScene from "~/components/scenes/game-scene";
 import StartScene from "~/components/scenes/start-scene";
+import SoundProvider, { useSound } from "~/components/sound-provider";
 import { cn } from "~/lib/cn";
 
 /**
@@ -20,14 +22,35 @@ type Scene = "start" | "game";
  * to the page, so this component only ever fills the space it is given.
  */
 export default function Screen({ className }: { className: string }) {
+  return (
+    <div className={cn("relative h-full w-full bg-terminal", className)}>
+      {/*
+        The sound machine wraps the scenes rather than the whole document: every
+        trigger the game has is inside one of them, and the mute switch has to be
+        under the same provider as the sounds it silences.
+      */}
+      <SoundProvider>
+        <Display />
+      </SoundProvider>
+    </div>
+  );
+}
+
+/** The scene switch, one level in so it can reach the sound machine. */
+function Display() {
   const { start } = useGameState();
+  const { play, startMusic } = useSound();
   const [scene, setScene] = useState<Scene>("start");
 
   return (
-    <div className={cn("relative h-full w-full bg-terminal", className)}>
+    <>
       {scene === "start" ? (
         <StartScene
           onStart={() => {
+            // The click is also the gesture browsers require before they will
+            // play anything, which is why the loop starts here and not on load.
+            startMusic();
+            play("day-start");
             start();
             setScene("game");
           }}
@@ -35,6 +58,14 @@ export default function Screen({ className }: { className: string }) {
       ) : (
         <GameScene />
       )}
-    </div>
+      {/*
+        Above both scenes and outside either of them: the switch belongs to the
+        machine, not to the round. Placed on the right window's toolbar row, just
+        left of its menu, where a browser keeps its extensions — which is the one
+        spot on the trading screen that a foreign button can sit without looking
+        like part of either website.
+      */}
+      <MuteToggle className="absolute top-[1.75cqw] right-[2.5cqw]" />
+    </>
   );
 }

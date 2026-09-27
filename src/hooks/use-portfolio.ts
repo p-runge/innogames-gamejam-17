@@ -21,6 +21,23 @@ type PortfolioOptions = {
 };
 
 /**
+ * What one held share cost on average.
+ *
+ * The line between a sale that made money and one that lost it, which nothing
+ * else in the portfolio can answer: cash and shares say where the account stands,
+ * not what it paid to get there.
+ */
+export function averageCost({
+  shares,
+  costBasis,
+}: {
+  shares: number;
+  costBasis: number;
+}): number {
+  return shares > 0 ? costBasis / shares : 0;
+}
+
+/**
  * The player's cash, position and ledger — the one place the trade controls and
  * the bank account agree on. Cash and shares move together in a single update,
  * so the two panels can never disagree about a trade.
@@ -33,6 +50,8 @@ export function usePortfolio({
   const [portfolio, setPortfolio] = useState(() => ({
     cash: startingCash,
     shares: 0,
+    /** What the shares currently held were paid for, in total. */
+    costBasis: 0,
     // Seeded so the account opens with a statement rather than a blank list.
     transactions: [
       { id: "opening", label: "Opening balance", amount: startingCash },
@@ -63,9 +82,21 @@ export function usePortfolio({
           amount: buying ? -value : value,
         };
 
+        const shares = buying
+          ? previous.shares + quantity
+          : previous.shares - quantity;
+
         return {
           cash: buying ? previous.cash - value : previous.cash + value,
-          shares: buying ? previous.shares + quantity : previous.shares - quantity,
+          shares,
+          // A sale retires its share of what the position cost, at the average
+          // rather than at any one buy's price — and the last share out zeroes it
+          // outright, so rounding cannot leave a basis behind an empty position.
+          costBasis: buying
+            ? previous.costBasis + value
+            : shares === 0
+              ? 0
+              : previous.costBasis - quantity * averageCost(previous),
           transactions: [transaction, ...previous.transactions].slice(
             0,
             ledgerLength,
@@ -78,5 +109,5 @@ export function usePortfolio({
 
   // startingCash comes back out so the portfolio can measure the day against it
   // — it is the only record of where the account opened.
-  return { ...portfolio, startingCash, trade };
+  return { ...portfolio, startingCash, avgCost: averageCost(portfolio), trade };
 }
