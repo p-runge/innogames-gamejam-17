@@ -20,7 +20,7 @@ export default function StartScene({ onStart }: { onStart: () => void }) {
         width={2172}
         height={724}
         priority
-        sizes="60vw"
+        sizes="30vw"
         className="h-auto w-[59%]"
       />
       <nav className="flex w-full flex-col items-center gap-[0.9em]">
