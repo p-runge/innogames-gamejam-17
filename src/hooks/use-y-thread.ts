@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { TweetPayload } from "~/lib/news/types";
 import {
   pickReplies,
   REPLIES_PER_POST,
@@ -13,6 +12,19 @@ import { buildThread, type FeedPost } from "~/lib/feed/thread";
 import type { Mood } from "~/lib/market/types";
 
 export type YPost = FeedPost;
+
+/**
+ * What a post hands to whoever publishes it: the author and the line they picked.
+ *
+ * The body is left out because the id is enough to find it again — it names an
+ * entry in the pool in `src/lib/feed/suggestions.ts`, which is also where the
+ * post's mood is written down. So the row the player reads and whatever the
+ * publisher does about it both come from one authored line.
+ */
+export type YPostPayload = {
+  username: string;
+  suggestionId: string;
+};
 
 /**
  * How long the buttons stay dead after a post.
@@ -35,9 +47,9 @@ export const POST_COOLDOWN_MS = 3_000;
  * which directions are on offer. Pressing one draws a line of that mood at random
  * from the authored pool, posts it, and starts the cooldown.
  *
- * `publish` is passed in rather than reached for, so the hook holds neither a
- * context nor a transport of its own. That is what lets the posting path be tested
- * without standing up a provider and a tRPC client around it.
+ * `publish` is passed in rather than reached for, so the hook holds no context of
+ * its own. That is what lets the posting path be tested with a spy, without
+ * standing a provider up around it.
  */
 export function useYThread({
   publish,
@@ -47,13 +59,13 @@ export function useYThread({
   replies = REPLIES_PER_POST,
 }: {
   /**
-   * Hands the post to the server, which applies its mood to the price.
+   * Hands the post on to whoever acts on it, which is what moves the price.
    *
    * The mood comes along because this callback is the one place a post is
    * certainly going out — a press during the cooldown never reaches it — so it is
    * also where the caller charges whatever a post costs them.
    */
-  publish: (payload: TweetPayload, mood: Mood) => void;
+  publish: (payload: YPostPayload, mood: Mood) => void;
   author?: string;
   handle?: string;
   /**
@@ -108,9 +120,6 @@ export function useYThread({
         { id, author, handle, body: suggestion.body, at, mine: true },
       ]);
 
-      // Only the id goes over the wire: the server resolves the body and the mood
-      // from the same pool this drew from, so the row the player reads and the
-      // price move it causes come from one authored line.
       publish({ username: author, suggestionId: suggestion.id }, mood);
 
       /*

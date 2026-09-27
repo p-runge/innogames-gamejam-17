@@ -12,7 +12,7 @@ import {
 const DIRECTIONS: NewsDirection[] = ["up", "down"];
 const CREDIBILITIES: NewsCredibility[] = ["confirmed", "rumor"];
 
-function event(overrides: Partial<NewsEvent>): NewsEvent {
+function event(overrides: Partial<NewsEvent> = {}): NewsEvent {
   return {
     direction: "up",
     strength: "medium",

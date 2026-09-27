@@ -2,11 +2,10 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TweetPayload } from "~/lib/news/types";
 import { REPLY_DELAY_MS } from "~/lib/feed/replies";
 import type { Mood } from "~/lib/market/types";
 import { TRADING_SESSION } from "~/lib/trading-session";
-import { useYThread } from "./use-y-thread";
+import { useYThread, type YPostPayload } from "./use-y-thread";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -22,7 +21,7 @@ function Probe({
   cooldownMs,
   replies,
 }: {
-  publish: (payload: TweetPayload, mood: Mood) => void;
+  publish: (payload: YPostPayload, mood: Mood) => void;
   cooldownMs?: number;
   replies?: number;
 }) {
