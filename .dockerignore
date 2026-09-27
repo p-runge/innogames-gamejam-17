@@ -28,8 +28,8 @@ next-env.d.ts
 Dockerfile
 .dockerignore
 docker-compose*.yml
-# Belongs to the ollama service, which runs an upstream image and bind-mounts
-# this at runtime. Nothing here is part of the app image's build context.
+# The ollama service builds from its own context (./services/ollama), which this
+# file does not apply to. Nothing here belongs in the app image.
 services
 README.md
 AGENTS.md

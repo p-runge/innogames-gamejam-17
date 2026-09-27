@@ -15,10 +15,11 @@
 # the service definition here is the one docker-compose.prod.yml runs.
 services:
   ollama:
-    image: ollama/ollama:latest
+    build:
+      context: ./services/ollama
     restart: unless-stopped
     environment:
-      # Read by the entrypoint script below, not by Ollama itself.
+      # Read by the entrypoint script, not by Ollama itself.
       - LLM_MODEL=${LLM_MODEL:-qwen3.5:4b}
       # Keeps the weights resident between rounds, so the second round of a
       # playtest does not pay the load time again.
@@ -29,8 +30,6 @@ services:
       - "11435:11434"
     volumes:
       - ollama-models:/root/.ollama
-      - ./services/ollama/entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     healthcheck:
       # `ollama list` returns 0 against an empty model store, so it reports
       # healthy while the weights are still downloading. `ollama show <model>`
