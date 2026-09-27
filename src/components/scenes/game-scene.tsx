@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
+import Distortion from "~/components/distortion";
 import { useGameState } from "~/components/game-state-provider";
 import { useInsanity } from "~/components/insanity-provider";
 import Portfolio from "~/components/portfolio";
@@ -180,6 +181,7 @@ export default function GameScene() {
           />
         </div>
       </BrowserFrame>
+      <Distortion band={band} />
     </div>
   );
 }

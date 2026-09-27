@@ -100,6 +100,24 @@ body {
 }
 
 /*
+  The twitch in the room once the Insane-O-Meter is well into the red. Held
+  deliberately shallow and stepped rather than eased: it is a flinch at the edge
+  of vision, not a strobe, and the point is to make the screen harder to trust
+  rather than harder to look at.
+*/
+@keyframes insanity-twitch {
+  0%,
+  47%,
+  53%,
+  100% {
+    opacity: 0.08;
+  }
+  50% {
+    opacity: 0.22;
+  }
+}
+
+/*
   The phone taking a message. All three are played by mounting the element that
   carries them — the call site remounts on the arriving message's id — so there
   is no state to reset and no animation to cancel.
