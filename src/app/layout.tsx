@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Silkscreen } from "next/font/google";
 import GameStateProvider from "~/components/game-state-provider";
 import { TRPCReactProvider } from "~/lib/trpc/client";
 import "./globals.css";
@@ -14,6 +14,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/*
+  The start screen's lettering, matching the logo's pixel type. It is loaded for
+  the whole document but used only there — the trading screen is a set of real
+  websites and reads in the system's own faces.
+*/
+const silkscreen = Silkscreen({
+  variable: "--font-silkscreen",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+});
+
 export const metadata: Metadata = {
   title: "Rise and Fall",
 };
@@ -22,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${silkscreen.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
         <TRPCReactProvider>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSubscription } from "@trpc/tanstack-react-query";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 
 import type { TipPayload } from "~/lib/events/types";
 import { mergeTips } from "~/lib/feed/tips";
@@ -14,6 +14,13 @@ type GameState = {
   candles: Candle[];
   /** The informant's private messages, oldest first, deduplicated on id. */
   tips: TipPayload[];
+  /**
+   * Open the round. Called once, by the player leaving the start screen — a
+   * page load is not a start, or the market would run while the menu is still
+   * up. Safe to call again: the server ignores a start on a running session,
+   * which is what lets a second browser join this one.
+   */
+  start: () => void;
   /**
    * Whether the server's snapshot has arrived at least once.
    *
@@ -45,7 +52,18 @@ export default function GameStateProvider({
   const [live, setLive] = useState<Candle[]>([]);
   const [liveTips, setLiveTips] = useState<TipPayload[]>([]);
 
-  const start = useMutation(trpc.session.start.mutationOptions());
+  const queryClient = useQueryClient();
+  const start = useMutation(
+    trpc.session.start.mutationOptions({
+      onSuccess: () => {
+        // The scene switches on the click, so the chart is already up when this
+        // lands. Without the refetch it would sit empty until the first live
+        // candle arrives seconds later, and a joining player would wait out the
+        // snapshot's own interval instead.
+        void queryClient.invalidateQueries(trpc.session.state.queryFilter());
+      },
+    }),
+  );
   // Refetched on a timer, not just once. The snapshot is this client's only way
   // back to the shared series after the stream misses something: a late attach,
   // a reconnect whose backlog outran the 100-event buffer, or a subscription
@@ -55,13 +73,6 @@ export default function GameStateProvider({
     ...trpc.session.state.queryOptions(),
     refetchInterval: 15_000,
   });
-
-  // The round has to be running before the snapshot means anything. The server
-  // ignores a start while a session is already up, so every client may ask.
-  const startRound = start.mutate;
-  useEffect(() => {
-    startRound();
-  }, [startRound]);
 
   const candles = useMemo(
     () => joinSeries(snapshot.data?.candles, live),
@@ -100,9 +111,10 @@ export default function GameStateProvider({
 
   const ready = snapshot.isSuccess;
 
+  const startRound = start.mutate;
   const value = useMemo(
-    () => ({ candles, tips, ready }),
-    [candles, tips, ready],
+    () => ({ candles, tips, ready, start: startRound }),
+    [candles, tips, ready, startRound],
   );
 
   return (
