@@ -56,7 +56,10 @@ services:
       # the app's LLM_MODEL so both sides of the stack agree on which weights
       # this deploy runs.
       - LLM_MODEL=${LLM_MODEL:-qwen3.5:4b}
-      - OLLAMA_KEEP_ALIVE=30m
+      # Never unload the weights. The entrypoint warms the model at startup; a
+      # finite keep-alive would undo that after an idle spell and hand the next
+      # player a timed-out generation and a templated reply.
+      - OLLAMA_KEEP_ALIVE=-1
       # Eight other applications share this host's 8 vCPUs. Without this, one
       # generation saturates every core and stalls all of them.
       - OLLAMA_NUM_THREAD=4

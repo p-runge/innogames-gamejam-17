@@ -31,4 +31,21 @@ else
   echo "entrypoint: WARNING could not pull $LLM_MODEL; serving without it" >&2
 fi
 
+# Loads the weights into RAM before the first player action. Ollama loads a
+# model lazily, on the first request, and that load costs more than the app
+# grants a generation in LLM_TIMEOUT_MS — so without this the first reply of a
+# session is always abandoned and served from a template. Backgrounded so a
+# shutdown signal arriving mid-warm-up is not stuck behind it, and tolerated on
+# failure for the same reason a failed pull is: a model that will not warm up
+# leaves a degraded game, not a dead container.
+if ollama show "$LLM_MODEL" >/dev/null 2>&1; then
+  (
+    if ollama run "$LLM_MODEL" "ok" >/dev/null 2>&1; then
+      echo "entrypoint: warmed up $LLM_MODEL"
+    else
+      echo "entrypoint: WARNING warm-up of $LLM_MODEL failed" >&2
+    fi
+  ) &
+fi
+
 wait "$serve_pid"
