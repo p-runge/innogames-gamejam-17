@@ -4,9 +4,11 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { useGameState } from "~/components/game-state-provider";
+import { useInsanity } from "~/components/insanity-provider";
+import { useInformantMessages } from "~/hooks/use-informant-messages";
 import { cn } from "~/lib/cn";
 import type { TipPayload } from "~/lib/events/types";
-import { formatClock } from "~/lib/trading-session";
+import { formatClock, TRADING_SESSION } from "~/lib/trading-session";
 
 /** How long an arriving message stays up before the bubble goes away. */
 export const BUBBLE_MS = 8_000;
@@ -17,11 +19,25 @@ export const BUBBLE_MS = 8_000;
  * As the page places it: it reads the messages out of the game state rather
  * than being handed them, because it sits outside the display alongside the
  * hands, where there are no panels to thread a prop through.
+ *
+ * Some of those messages are not from anybody. Past a certain reading on the
+ * Insane-O-Meter the player's own head starts writing them, and this is where the
+ * two streams are merged — the phone below is handed one list and cannot tell
+ * which is which, because neither can the player.
  */
 export default function Phone() {
-  const { tips, ready } = useGameState();
+  const { tips, ready, candles } = useGameState();
+  const { band } = useInsanity();
 
-  return <PhoneOnDesk tips={tips} ready={ready} />;
+  /*
+    A fabrication is stamped with the session clock, like the informant's own
+    messages, so it sits on the same timeline as the candles rather than on the
+    player's wall clock.
+  */
+  const at = candles.at(-1)?.t ?? TRADING_SESSION.openMinutes;
+  const messages = useInformantMessages({ tips, band, at });
+
+  return <PhoneOnDesk tips={messages} ready={ready} />;
 }
 
 /**
