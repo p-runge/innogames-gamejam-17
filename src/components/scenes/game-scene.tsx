@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
@@ -8,6 +9,7 @@ import Distortion from "~/components/distortion";
 import { useGameState } from "~/components/game-state-provider";
 import { useInsanity } from "~/components/insanity-provider";
 import Portfolio from "~/components/portfolio";
+import EndScene from "~/components/scenes/end-scene";
 import { useSound } from "~/components/sound-provider";
 import TradeControls from "~/components/trade-controls";
 import YFeed from "~/components/y-feed";
@@ -16,9 +18,11 @@ import {
   useMarketSfx,
   useTipSfx,
 } from "~/hooks/use-ambient-sfx";
+import { useClosingBell } from "~/hooks/use-closing-bell";
 import { useMarketFeed } from "~/hooks/use-market-feed";
 import { usePortfolio } from "~/hooks/use-portfolio";
 import { useYThread } from "~/hooks/use-y-thread";
+import { resolveOutcome } from "~/lib/round-outcome";
 import { TRADING_SESSION } from "~/lib/trading-session";
 import { useTRPC } from "~/lib/trpc/client";
 
@@ -58,12 +62,16 @@ const SITES = {
  * the round has been started, never before — every hook below attaches to a
  * running session.
  */
-export default function GameScene() {
+export default function GameScene({
+  onBackToMenu,
+}: {
+  onBackToMenu: () => void;
+}) {
   const trpc = useTRPC();
   const candles = useMarketFeed();
-  const { tips, ready } = useGameState();
+  const { tips, ready, closed } = useGameState();
   const { play } = useSound();
-  const { insanity, band, cost } = useInsanity();
+  const { insanity, band, register, cost } = useInsanity();
   const { cash, shares, transactions, startingCash, avgCost, trade } =
     usePortfolio({ symbol: SYMBOL });
 
@@ -86,12 +94,17 @@ export default function GameScene() {
 
   const { posts, cooling, post } = useYThread({
     /*
-      Wrapped rather than handed `sendTweet.mutate` directly, because this is
-      where the meter gets charged: `useYThread` swallows a press during the
-      cooldown, and charging from the button would bill the player for a post
-      that never left.
+      The wrapper rather than the button, because this is the only place a post is
+      certainly going out: `useYThread` swallows a press during the cooldown, and
+      charging from the button would bill the player for one that never left.
+
+      The band is read before the charge, so a post is as strong and as expensive
+      as the state it was written in rather than the state it leaves behind.
     */
-    publish: (payload) => sendTweet.mutate(payload),
+    publish: (payload, mood) => {
+      sendTweet.mutate({ ...payload, mania: band.impulse });
+      register(mood);
+    },
     cooldownMs: band.cooldownMs,
     replies: band.replies,
   });
@@ -102,6 +115,36 @@ export default function GameScene() {
   // Posts are stamped with the session clock, so they sit on the same timeline
   // as the candles rather than on the player's wall clock.
   const now = latest?.t ?? TRADING_SESSION.openMinutes;
+
+  const bell = useClosingBell({ candles, closed });
+  const outcome = resolveOutcome({ insanity, cash, closed: bell });
+
+  /*
+    One cue per ending. `outcome` is null until the round is decided and never
+    changes afterwards, so this fires exactly once.
+  */
+  useEffect(() => {
+    if (outcome === null) return;
+    play(outcome === "won" ? "round-won" : "round-lost");
+  }, [outcome, play]);
+
+  /*
+    Below every hook, so the ending does not change which of them run. The market
+    goes on ticking underneath; `EndScene` freezes its tally on its own first
+    render, and leaving for the menu is what stops the round on the server.
+  */
+  if (outcome !== null) {
+    return (
+      <EndScene
+        outcome={outcome}
+        cash={cash}
+        shares={shares}
+        insanity={insanity}
+        at={now}
+        onBackToMenu={onBackToMenu}
+      />
+    );
+  }
 
   return (
     <div className="relative h-full w-full">

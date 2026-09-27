@@ -45,7 +45,9 @@ export type SoundId =
   | "price-crash"
   | "price-rally"
   | "idle-yawn"
-  | "idle-cough";
+  | "idle-cough"
+  | "round-won"
+  | "round-lost";
 
 /** What the player did. Loudest, because it is the answer to a click. */
 const ACTION = 0.7;
@@ -93,6 +95,18 @@ export const SOUNDS: Record<SoundId, Sound> = {
   "price-rally": { src: "/sounds/ovation.mp3", volume: EVENT, cooldownMs: 20_000 },
 
   /** Nothing has happened for a while and he is bored of his own job. */
+  /*
+    The two endings, at the front with the player's own actions rather than back
+    with the market's: this is the round's verdict on them, it plays once, and
+    there is nothing after it to crowd — hence no cooldown either.
+  */
+
+  /** He got out with the money. The only unqualified good news in the game. */
+  "round-won": { src: "/sounds/ovation.mp3", volume: ACTION, cooldownMs: 0 },
+
+  /** The meter filled, or the bell went while he was still holding. */
+  "round-lost": { src: "/sounds/scream.mp3", volume: ACTION, cooldownMs: 0 },
+
   "idle-yawn": { src: "/sounds/yawn.mp3", volume: AMBIENCE, cooldownMs: 30_000 },
   "idle-cough": { src: "/sounds/cough.mp3", volume: AMBIENCE, cooldownMs: 30_000 },
 } as const;

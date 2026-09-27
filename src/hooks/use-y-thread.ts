@@ -46,8 +46,14 @@ export function useYThread({
   cooldownMs = POST_COOLDOWN_MS,
   replies = REPLIES_PER_POST,
 }: {
-  /** Hands the post to the server, which applies its mood to the price. */
-  publish: (payload: TweetPayload) => void;
+  /**
+   * Hands the post to the server, which applies its mood to the price.
+   *
+   * The mood comes along because this callback is the one place a post is
+   * certainly going out — a press during the cooldown never reaches it — so it is
+   * also where the caller charges whatever a post costs them.
+   */
+  publish: (payload: TweetPayload, mood: Mood) => void;
   author?: string;
   handle?: string;
   /**
@@ -105,7 +111,7 @@ export function useYThread({
       // Only the id goes over the wire: the server resolves the body and the mood
       // from the same pool this drew from, so the row the player reads and the
       // price move it causes come from one authored line.
-      publish({ username: author, suggestionId: suggestion.id });
+      publish({ username: author, suggestionId: suggestion.id }, mood);
 
       /*
         One reply to what was just posted, a couple of seconds behind it. It carries

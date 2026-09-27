@@ -1,13 +1,16 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useGameState } from "~/components/game-state-provider";
+import { useInsanity } from "~/components/insanity-provider";
 import MuteToggle from "~/components/mute-toggle";
 import GameScene from "~/components/scenes/game-scene";
 import StartScene from "~/components/scenes/start-scene";
 import SoundProvider, { useSound } from "~/components/sound-provider";
 import { cn } from "~/lib/cn";
+import { useTRPC } from "~/lib/trpc/client";
 
 /**
  * What the laptop's display is currently showing. The scenes are exclusive —
@@ -38,9 +41,13 @@ export default function Screen({ className }: { className: string }) {
 
 /** The scene switch, one level in so it can reach the sound machine. */
 function Display() {
+  const trpc = useTRPC();
   const { start } = useGameState();
+  const { reset } = useInsanity();
   const { play, startMusic } = useSound();
   const [scene, setScene] = useState<Scene>("start");
+
+  const endRound = useMutation(trpc.session.end.mutationOptions());
 
   return (
     <>
@@ -51,12 +58,25 @@ function Display() {
             // play anything, which is why the loop starts here and not on load.
             startMusic();
             play("day-start");
+            // Cleared on the way in rather than on the way out: the meter's
+            // provider is above this switch and outlives a round, so the menu is
+            // what knows a new one is starting.
+            reset();
             start();
             setScene("game");
           }}
         />
       ) : (
-        <GameScene />
+        <GameScene
+          onBackToMenu={() => {
+            /*
+              The server has to be told, or its ticker outlives the ending and the
+              next start joins the abandoned round instead of opening a day.
+            */
+            endRound.mutate();
+            setScene("start");
+          }}
+        />
       )}
       {/*
         Above both scenes and outside either of them: the switch belongs to the
