@@ -448,26 +448,31 @@ export default function YFeed({
                   // Dead during the cooldown, which is also the window this
                   // button's next line is being written in.
                   disabled={cooling}
-                  // Arrow beside the word rather than above it: stacked, the
-                  // button is twice as tall for no gain in legibility.
-                  className="flex w-full items-center justify-center gap-[1cqw] rounded-full border border-feed-line px-[1.4cqw] py-[1.4cqw] transition-opacity hover:bg-feed-line/40 focus-visible:outline-2 focus-visible:outline-feed-accent disabled:opacity-40 disabled:hover:bg-transparent"
+                  // Arrow beside the word, price underneath. The arrow earns its
+                  // place on the word's line because both say the same thing
+                  // about the market; the price is about the player's head and
+                  // is a different question, so it gets its own line rather than
+                  // squeezing the word down to "Pa…".
+                  className="flex w-full flex-col items-center justify-center gap-[0.5cqw] rounded-full border border-feed-line px-[1cqw] py-[1cqw] transition-opacity hover:bg-feed-line/40 focus-visible:outline-2 focus-visible:outline-feed-accent disabled:opacity-40 disabled:hover:bg-transparent"
                 >
-                  <span
-                    aria-hidden
-                    className="text-[2.4cqw] leading-none font-black"
-                    style={{ color: mark.color }}
-                  >
-                    {mark.arrow}
-                  </span>
-                  <span className="truncate text-[3cqw] leading-none font-bold">
-                    {MOOD_WORD[mood]}
+                  <span className="flex items-center gap-[0.8cqw]">
+                    <span
+                      aria-hidden
+                      className="text-[2.2cqw] leading-none font-black"
+                      style={{ color: mark.color }}
+                    >
+                      {mark.arrow}
+                    </span>
+                    <span className="truncate text-[2.8cqw] leading-none font-bold">
+                      {MOOD_WORD[mood]}
+                    </span>
                   </span>
                   {/*
                     The effective amount, not the list price, which is how the
                     player finds out that calming down gets more expensive the
                     worse things get.
                   */}
-                  <span className="shrink-0 text-[1.9cqw] leading-none text-feed-muted tabular-nums">
+                  <span className="text-[1.9cqw] leading-none text-feed-muted tabular-nums">
                     {formatCost(costFor(mood))}
                   </span>
                 </button>
