@@ -1,39 +1,31 @@
 "use client";
 
 import { useAutoAnimate } from "@formkit/auto-animate/react";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
 import { POST_COOLDOWN_MS, type YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
 import { MOOD_ORDER, MOOD_WORD } from "~/lib/feed/suggestions";
 import type { Mood } from "~/lib/market/types";
 import { formatClock } from "~/lib/trading-session";
-
-
 /*
-  Avatars stand in for photos, so they take their color from the handle — the
-  same account is the same color every render, and on the server too.
+  Avatars stand in for photos, and there are only two kinds of row in this feed,
+  so there are only two colors: the player blue, everyone replying to them green.
+  Two rather than a hash of the handle, which spread five colors over the rows and
+  made "mine" something the reader had to work out from the name instead of see.
+
+  Read off the post's own flag, so it comes out the same on the server as in the
+  browser.
 */
-const AVATAR_COLORS = ["#1d9bf0", "#794bc4", "#f91880", "#00ba7c", "#ff7a00"];
+const AVATAR_MINE = "#1d9bf0";
+const AVATAR_REPLY = "#00ba7c";
 
-function avatarColor(handle: string) {
-  const sum = [...handle].reduce((total, char) => total + char.charCodeAt(0), 0);
-
-  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
-}
-
-function Avatar({ post }: { post: Pick<YPost, "author" | "handle"> }) {
+function Avatar({ post }: { post: Pick<YPost, "author" | "mine"> }) {
   return (
     <div
       aria-hidden
       className="grid size-[7cqw] shrink-0 place-items-center rounded-full text-[3cqw] font-bold text-white"
-      style={{ backgroundColor: avatarColor(post.handle) }}
+      style={{ backgroundColor: post.mine ? AVATAR_MINE : AVATAR_REPLY }}
     >
       {post.author.slice(0, 1)}
     </div>
@@ -295,13 +287,6 @@ export default function YFeed({
   */
   const atTop = useRef(true);
 
-  // Moving the container's own scrollTop rather than calling scrollIntoView,
-  // which walks up and scrolls ancestors too — on a screen this one is rotated
-  // inside, that would shift the whole laptop.
-  const scrollToStart = useCallback(() => {
-    const thread = threadRef.current;
-    if (thread) thread.scrollTop = 0;
-  }, []);
 
   /*
     Follows the head of the thread while the reader is already there, and leaves
@@ -326,34 +311,6 @@ export default function YFeed({
     return () => observer.disconnect();
   }, []);
 
-  /*
-    Holds the view at the head of the thread while a new post animates in.
-    auto-animate grows the arriving entry from zero to its full height, and that
-    growth happens above everything the reader can see, so the browser's own
-    scroll anchoring would push the thread down to compensate. A ResizeObserver
-    follows the height and pins it back, which stays correct if the animation's
-    duration ever changes.
-  */
-  useEffect(() => {
-    const list = listElement.current;
-    if (!list) return;
-
-    const observer = new ResizeObserver(() => {
-      if (atTop.current || followOwnPost.current) scrollToStart();
-    });
-
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [scrollToStart]);
-
-  useEffect(() => {
-    const own = followOwnPost.current;
-    followOwnPost.current = false;
-
-    // A post the player just made always pulls the feed back up to it; anything
-    // else only does so if the reader was at the top anyway.
-    if (own || atTop.current) scrollToStart();
-  }, [posts, scrollToStart]);
 
   /*
     Animation stays off while the feed is empty, so the first post of a round
@@ -362,7 +319,6 @@ export default function YFeed({
   useEffect(() => {
     enableAnimation(posts.length > 0);
   }, [enableAnimation, posts.length]);
-
   const [parent] = useAutoAnimate(/* optional config */)
   /**
    * Post in the mood the player pressed. The word on the button is the choice;
@@ -426,7 +382,6 @@ export default function YFeed({
         <ul ref={parent} className="divide-y divide-feed-line">
           {newestFirst.map((post) => (
             <li key={post.id}>
-              
               <Post post={post} />
             </li>
           ))}
@@ -469,7 +424,8 @@ export default function YFeed({
           />
         )}
         <div className="flex items-center gap-[2cqw]">
-          <Avatar post={{ author: "You", handle: "@you" }} />
+          {/* The composer is the player, so it takes the player's blue. */}
+          <Avatar post={{ author: "You", mine: true }} />
           <span className="text-[2.4cqw] font-bold text-feed-muted">
             Say something
           </span>

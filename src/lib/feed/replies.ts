@@ -15,17 +15,23 @@ import type { Mood } from "~/lib/market/types";
  * Invented, like every account in this game.
  */
 
-/** How many replies land after one post. */
-export const REPLIES_PER_POST = 2;
+/**
+ * How many replies land after one post.
+ *
+ * One. Two filled the thread faster than the player could read it, and the second
+ * mostly scrolled the first out of the way — the joke only lands if it is the only
+ * thing that arrived.
+ */
+export const REPLIES_PER_POST = 1;
 
 /**
- * Gap between the post and the first reply, and between the two replies.
+ * Gap between the post and its reply.
  *
- * One second each, so both land inside the cooldown and the feed answers before the
- * player can post again. Staggered rather than both at once: two rows appearing
- * together reads as a page load, one after the other reads as people replying.
+ * Two seconds: long enough to read as somebody answering rather than as part of the
+ * same submit, and still inside the cooldown, so the feed has spoken before the
+ * player can post again.
  */
-export const REPLY_DELAY_MS = 1_000;
+export const REPLY_DELAY_MS = 2_000;
 
 /** The accounts these come from. One is drawn per reply. */
 const ACCOUNTS: readonly { name: string; handle: string }[] = [
@@ -187,6 +193,9 @@ function shuffled<T>(items: readonly T[]): T[] {
  * feed does not answer two posts with the same joke. Ignored once it would leave
  * too few to fill the request, because a repeat beats a missing reply.
  *
+ * Takes a count even though the game asks for one, so the pool stays the thing that
+ * decides what a reply is and the caller stays the thing that decides how many.
+ *
  * Random at call time, never during a render.
  */
 export function pickReplies(
@@ -202,8 +211,8 @@ export function pickReplies(
   const fresh = lines.filter((line) => !exclude.includes(line.lineId));
   const pool = fresh.length >= count ? fresh : lines;
 
-  // Accounts drawn together so the two replies are never the same person talking
-  // to themselves.
+  // Accounts drawn together, so asking for more than one never returns the same
+  // person talking to themselves.
   const accounts = shuffled(ACCOUNTS).slice(0, count);
 
   return shuffled(pool)

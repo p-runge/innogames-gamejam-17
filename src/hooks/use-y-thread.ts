@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { TweetPayload } from "~/lib/events/types";
+import { pickReplies, REPLY_DELAY_MS } from "~/lib/feed/replies";
 import { pickForMood } from "~/lib/feed/suggestions";
 import { buildThread, type FeedPost } from "~/lib/feed/thread";
 import type { Mood } from "~/lib/market/types";
@@ -58,6 +59,9 @@ export function useYThread({
   */
   const used = useRef<string[]>([]);
 
+  /** The same, for the reply lines — a separate pool, so a separate tally. */
+  const usedReplies = useRef<string[]>([]);
+
   /** True once unmounted, so the cooldown's timer cannot set state afterwards. */
   const dropped = useRef(false);
   useEffect(() => {
@@ -85,6 +89,39 @@ export function useYThread({
       // from the same pool this drew from, so the row the player reads and the
       // price move it causes come from one authored line.
       publish({ username: author, suggestionId: suggestion.id });
+
+      /*
+        One reply to what was just posted, a couple of seconds behind it. It carries
+        the post's own clock time rather than a later one: the feed sorts by it and
+        the sort is stable, so an equal stamp keeps arrival order — the reply lands
+        directly above the post it answers, once the list is reversed for display.
+
+        The timer is not tracked for cancellation. `dropped` already stops the state
+        update, and a two-second timeout outliving the round costs nothing — which is
+        not true of the cooldown, whose timer this mirrors.
+      */
+      pickReplies(mood, undefined, usedReplies.current).forEach(
+        (reply, index) => {
+          usedReplies.current.push(reply.lineId);
+
+          const replyId = `reply-${id}-${index}`;
+
+          window.setTimeout(() => {
+            if (dropped.current) return;
+
+            setMine((previous) => [
+              ...previous,
+              {
+                id: replyId,
+                author: reply.author,
+                handle: reply.handle,
+                body: reply.body,
+                at,
+              },
+            ]);
+          }, REPLY_DELAY_MS);
+        },
+      );
 
       setCooling(true);
       window.setTimeout(() => {
