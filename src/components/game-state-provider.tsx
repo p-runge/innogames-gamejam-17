@@ -30,6 +30,14 @@ type GameState = {
    * has no other way to tell.
    */
   ready: boolean;
+  /**
+   * Whether the server considers the round over.
+   *
+   * The backstop for the closing bell, which `useClosingBell` otherwise derives
+   * from the candle clock: a page that joined after the bell has no candle
+   * arriving to time, and this is the only thing that knows.
+   */
+  closed: boolean;
 };
 
 const GameStateContext = createContext<GameState | null>(null);
@@ -110,11 +118,12 @@ export default function GameStateProvider({
   );
 
   const ready = snapshot.isSuccess;
+  const closed = snapshot.data?.closed ?? false;
 
   const startRound = start.mutate;
   const value = useMemo(
-    () => ({ candles, tips, ready, start: startRound }),
-    [candles, tips, ready, startRound],
+    () => ({ candles, tips, ready, closed, start: startRound }),
+    [candles, tips, ready, closed, startRound],
   );
 
   return (
