@@ -61,6 +61,12 @@ const SITES = {
  * The game itself: the two windows the player trades in. Mounted by Screen once
  * the round has been started, never before — every hook below attaches to a
  * running session.
+ *
+ * It also decides how the round ends, because it is the only component that sees
+ * both halves of the answer: the cash lives in its portfolio and the meter comes
+ * from a provider two levels up. Once there is an outcome it renders the ending
+ * in place of the two windows, which is also what stops a post being charged to a
+ * meter that has already called the round.
  */
 export default function GameScene({
   onBackToMenu,
