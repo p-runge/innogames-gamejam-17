@@ -4,6 +4,7 @@ import type { EChartsOption } from "echarts";
 import ReactECharts from "echarts-for-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useThrottled } from "~/hooks/use-throttled";
 import { cn } from "~/lib/cn";
 import type { Candle } from "~/lib/market/types";
 import { formatClock, sessionSlots } from "~/lib/trading-session";
@@ -46,6 +47,28 @@ const LABEL_PT = 8;
 
 const formatPrice = (value: number) => value.toFixed(2);
 
+/**
+ * Every candle slot in the trading day.
+ *
+ * Module scope, not rebuilt per update: the axis covers the whole session from
+ * the first frame and never changes, so handing ECharts a fresh array of the
+ * same 102 entries four times a second only bought a re-layout of an axis that
+ * had not moved.
+ */
+const SLOTS = sessionSlots();
+
+/**
+ * How often the marks are allowed to be redrawn, in milliseconds.
+ *
+ * The price arrives four times a second, but a candle closes every five, so most
+ * of those ticks move the forming candle's close by a fraction of a cent. The
+ * chart is the most expensive thing on the screen — a hundred-odd marks in SVG,
+ * inside a container the page tilts in 3D, which the browser has to rasterize
+ * again on every change — and halving how often it redraws is invisible next to
+ * what it costs. The header keeps reading live; only the drawing is paced.
+ */
+const REDRAW_MS = 500;
+
 export default function CandleChart({
   symbol,
   candles,
@@ -73,6 +96,14 @@ export default function CandleChart({
     return () => observer.disconnect();
   }, []);
 
+  /*
+    What the marks are drawn from. The readout below takes `candles` instead, so
+    the price and the day's change stay live at the feed's own rate — updating a
+    line of text costs nothing, and a number that only moved twice a second
+    would read as a stalled terminal.
+  */
+  const drawn = useThrottled(candles, REDRAW_MS);
+
   const first = candles.at(0);
   const last = candles.at(-1);
   const change = first && last ? last.close - first.open : 0;
@@ -82,15 +113,15 @@ export default function CandleChart({
 
   const option = useMemo<EChartsOption>(() => {
     const size = (value: number) => Math.round(value * scale);
-    const latest = candles.at(-1);
+    const latest = drawn.at(-1);
     const latestRising = latest ? latest.close >= latest.open : true;
 
     // The axis carries every slot in the trading day from the first frame, and
     // slots the session has not reached yet hold ECharts' empty value. That is
     // what keeps the chart still: candles fill it in left to right rather than
     // the window scrolling under them.
-    const slots = sessionSlots();
-    const bySlot = new Map(candles.map((candle) => [candle.t, candle]));
+    const slots = SLOTS;
+    const bySlot = new Map(drawn.map((candle) => [candle.t, candle]));
 
     return {
       // The feed replaces the option several times a second, and animating each
@@ -242,7 +273,7 @@ export default function CandleChart({
         },
       ],
     };
-  }, [candles, scale]);
+  }, [drawn, scale]);
 
   return (
     <div
