@@ -73,3 +73,30 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/*
+  The post cooldown draining away. Driven by a transform rather than by width so
+  it stays off the layout, and the duration is passed in from POST_COOLDOWN_MS at
+  the call site so the bar cannot drift from the rule it is showing.
+
+  The element is mounted only while the cooldown runs, so mounting is what starts
+  the animation — there is no state to reset and nothing to key.
+*/
+@keyframes y-cooldown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+    Still the only signal that the buttons are coming back, so it is held at full
+    width for the duration rather than removed: a step, not a sweep.
+  */
+  [data-cooldown] {
+    animation: none;
+  }
+}

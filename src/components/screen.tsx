@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
@@ -13,6 +14,7 @@ import { useMarketFeed } from "~/hooks/use-market-feed";
 import { usePortfolio } from "~/hooks/use-portfolio";
 import { useYThread } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
+import type { Mood } from "~/lib/market/types";
 import { TRADING_SESSION } from "~/lib/trading-session";
 import { useTRPC } from "~/lib/trpc/client";
 
@@ -64,7 +66,24 @@ export default function Screen({ className }: { className: string }) {
     }),
   );
 
-  const { posts, post } = useYThread({ publish: sendTweet.mutate });
+  /*
+    Writes the lines for the buttons that are about to be offered. A mutation
+    rather than a query: it is a request to do work, not a cacheable read, and two
+    calls with the same moods must not be served one result.
+  */
+  const drafts = useMutation(trpc.tweets.draft.mutationOptions());
+  // Stable, because the hook asks for the opening hand from an effect keyed on
+  // this — an inline arrow would redraw a hand on every render.
+  const draftMutate = drafts.mutateAsync;
+  const draft = useCallback(
+    (moods: Mood[]) => draftMutate({ moods }),
+    [draftMutate],
+  );
+
+  const { posts, cooling, post } = useYThread({
+    publish: sendTweet.mutate,
+    draft,
+  });
 
   const latest = candles.at(-1);
   // Orders fill at the forming candle's close, which is the live price.
@@ -96,7 +115,8 @@ export default function Screen({ className }: { className: string }) {
         */}
         <YFeed
           posts={posts}
-          onPost={(suggestion) => post(suggestion, now)}
+          cooling={cooling}
+          onPost={(mood) => post(mood, now)}
           docked={<DmDock tips={tips} ready={ready} />}
           className="h-full w-full"
         />

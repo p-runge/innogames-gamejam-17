@@ -9,15 +9,9 @@ import {
   type ReactNode,
 } from "react";
 
-import type { YPost } from "~/hooks/use-y-thread";
+import { POST_COOLDOWN_MS, type YPost } from "~/hooks/use-y-thread";
 import { cn } from "~/lib/cn";
-import {
-  MOOD_WORD,
-  OPENING_MOODS,
-  pickForMood,
-  pickMoods,
-  type Suggestion,
-} from "~/lib/feed/suggestions";
+import { MOOD_ORDER, MOOD_WORD } from "~/lib/feed/suggestions";
 import type { Mood } from "~/lib/market/types";
 import { formatClock } from "~/lib/trading-session";
 
@@ -275,12 +269,15 @@ function Reply({ post }: { post: YPost }) {
  */
 export default function YFeed({
   posts,
+  cooling,
   onPost,
   docked,
   className,
 }: {
   posts: YPost[];
-  onPost: (suggestion: Suggestion) => void;
+  /** True while the post cooldown runs, during which the buttons are dead. */
+  cooling: boolean;
+  onPost: (mood: Mood) => void;
   /**
    * Something pinned to the bottom-right of the thread, over the posts and
    * clear of the suggestions.
@@ -293,20 +290,6 @@ export default function YFeed({
   docked?: ReactNode;
   className?: string;
 }) {
-  /*
-    The three words currently on offer. Starts from the authored opening hand so
-    the server's HTML and the first client render agree, and is redrawn on every
-    post from there.
-  */
-  const [offered, setOffered] = useState<readonly Mood[]>(OPENING_MOODS);
-
-  /*
-    The line each button posted last, so the next press of the same button draws
-    something else. A ref and not state: nothing on screen reads it, and as state
-    every post would re-render the panel to no visible effect.
-  */
-  const lastPosted = useRef<Partial<Record<Mood, string>>>({});
-
   // The rest element is a fresh array, so reversing it in place leaves `posts`
   // alone.
   const [root, ...rest] = posts;
@@ -420,21 +403,16 @@ export default function YFeed({
   }, [enableAnimation, posts.length]);
 
   /**
-   * Post one line of the mood the player pressed. The word on the button is the
-   * choice; which of its lines goes out is the game's to make.
+   * Post in the mood the player pressed. The word on the button is the choice;
+   * which line carries it, and the hand that follows, belong to the caller.
    */
   const submit = (mood: Mood) => {
-    const suggestion: Suggestion = pickForMood(mood, lastPosted.current[mood]);
-    lastPosted.current[mood] = suggestion.id;
+    if (cooling) return;
 
     // The player's own post always pulls the thread down to it, whether or not
     // they had scrolled away to read older ones.
     followOwnPost.current = true;
-    onPost(suggestion);
-
-    // A new hand for the next post, so what the player can say keeps moving with
-    // the price rather than being the same three words all round.
-    setOffered(pickMoods());
+    onPost(mood);
 
     // What the hands overlay taps to. Dispatched here rather than in the overlay
     // so the animation follows the post itself, not a click that was ignored.
@@ -515,50 +493,66 @@ export default function YFeed({
       */}
       <div className="relative z-10 shrink-0 border-t border-feed-line bg-feed-surface px-[3cqw] py-[1.6cqw]">
         {/*
-          Label and buttons on one line, so the panel costs the thread a single
-          row's height instead of two stacked ones. The label holds its width and
-          the buttons take what is left.
+          The cooldown, draining left to right along the panel's top edge. Seven
+          seconds of greyed-out buttons with nothing moving reads as broken, where
+          three were forgivable — this is what turns the wait into "my next move is
+          loading". Mounted only while it runs, which is also what starts it.
         */}
+        {cooling && (
+          <div
+            aria-hidden
+            data-cooldown
+            style={{ animation: `y-cooldown ${POST_COOLDOWN_MS}ms linear forwards` }}
+            className="absolute inset-x-0 top-0 h-[0.5cqw] origin-left bg-feed-accent"
+          />
+        )}
         <div className="flex items-center gap-[2cqw]">
           <Avatar post={{ author: "You", handle: "@you" }} />
-          <span className="shrink-0 text-[2.4cqw] font-bold text-feed-muted">
+          <span className="text-[2.4cqw] font-bold text-feed-muted">
             Say something
           </span>
-          {/*
-            The hand on offer, three of the five, still in sell-to-buy order.
-            Equal fractions rather than flex-basis, so the buttons stay the same
-            width whatever words land in them — a row that resized itself per hand
-            would move under the cursor on every post.
-          */}
-          <ul className="grid min-w-0 flex-1 grid-cols-3 gap-[1.2cqw]">
-            {offered.map((mood) => {
-              const mark = MOOD_MARK[mood];
-
-              return (
-                <li key={mood} className="flex">
-                  <button
-                    type="button"
-                    onClick={() => submit(mood)}
-                    // Arrow beside the word rather than above it: in one shared
-                    // row the stacked version set the whole panel's height.
-                    className="flex w-full items-center justify-center gap-[0.8cqw] rounded-full border border-feed-line px-[1.2cqw] py-[1.1cqw] hover:bg-feed-line/40 focus-visible:outline-2 focus-visible:outline-feed-accent"
-                  >
-                    <span
-                      aria-hidden
-                      className="text-[2cqw] leading-none font-black"
-                      style={{ color: mark.color }}
-                    >
-                      {mark.arrow}
-                    </span>
-                    <span className="truncate text-[2.4cqw] leading-none font-bold">
-                      {MOOD_WORD[mood]}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
         </div>
+        {/*
+          The buttons get the panel's full width on their own row. Sharing the
+          label's row left each of the five about a ninth of the pane, which was
+          too narrow to read the word in — the row costs height, and the word being
+          legible is what the button is for.
+
+          All five moods, in sell-to-buy order, so the row reads as one dial and
+          every button stays where the player last saw it. Equal fractions rather
+          than flex-basis, so the widths do not shift with the words in them.
+        */}
+        <ul className="mt-[1.4cqw] grid grid-cols-5 gap-[1.2cqw]">
+          {MOOD_ORDER.map((mood) => {
+            const mark = MOOD_MARK[mood];
+
+            return (
+              <li key={mood} className="flex">
+                <button
+                  type="button"
+                  onClick={() => submit(mood)}
+                  // Dead during the cooldown, which is also the window this
+                  // button's next line is being written in.
+                  disabled={cooling}
+                  // Arrow beside the word rather than above it: stacked, the
+                  // button is twice as tall for no gain in legibility.
+                  className="flex w-full items-center justify-center gap-[1cqw] rounded-full border border-feed-line px-[1.4cqw] py-[1.4cqw] transition-opacity hover:bg-feed-line/40 focus-visible:outline-2 focus-visible:outline-feed-accent disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <span
+                    aria-hidden
+                    className="text-[2.4cqw] leading-none font-black"
+                    style={{ color: mark.color }}
+                  >
+                    {mark.arrow}
+                  </span>
+                  <span className="truncate text-[3cqw] leading-none font-bold">
+                    {MOOD_WORD[mood]}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </div>
   );

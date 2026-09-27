@@ -43,47 +43,6 @@ export const MOOD_ORDER: readonly Mood[] = [
 ];
 
 /**
- * How many of the five are on offer at once.
- *
- * Three rather than all five is the mechanic: the player works with the hand they
- * are dealt, so pushing the price the way they want is not always available and a
- * round has to be played rather than solved.
- */
-export const MOODS_OFFERED = 3;
-
-/**
- * The hand the panel opens with.
- *
- * Authored rather than drawn, because this renders on the server as well and a
- * random opening hand would not survive hydration. It spans the dial — a hard
- * sell, a shrug and a hard buy — so the first click is still a real choice, and
- * every hand after it is drawn.
- */
-export const OPENING_MOODS: readonly Mood[] = ["dump", "neutral", "moon"];
-
-/**
- * A fresh hand of `MOODS_OFFERED` distinct moods.
- *
- * A real shuffle, not `sort(() => Math.random() - 0.5)`: that comparator is
- * inconsistent and leaves the result measurably biased toward the original order,
- * which here would mean the same two or three words most of the round.
- *
- * Returned in `MOOD_ORDER` rather than in the order drawn, so the row keeps
- * running sell to buy and the arrows stay in a sane left-to-right progression.
- * Called on click, never during a render.
- */
-export function pickMoods(count = MOODS_OFFERED): Mood[] {
-  const pool = [...MOOD_ORDER];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-
-  const drawn = new Set(pool.slice(0, count));
-  return MOOD_ORDER.filter((mood) => drawn.has(mood));
-}
-
-/**
  * What each word actually posts.
  *
  * Five lines a mood, so a player leaning on one button does not read their own
@@ -224,20 +183,21 @@ export function getSuggestion(id: string): Suggestion | undefined {
 /**
  * A line for the word the player pressed.
  *
- * `exclude` is the id this button posted last time, and it is dropped from the
- * draw rather than retried: pressing Panic twice and getting the same sentence
- * reads as the click not having registered. Only dropped while something else is
- * left to pick, so a single-line mood still works.
+ * `exclude` is the ids already used, which are dropped from the draw rather than
+ * retried: pressing Panic twice and getting the same sentence reads as the click
+ * not having registered. Exclusions are ignored once they would leave nothing to
+ * pick, because a repeat beats a blank post.
  *
  * Random at click time, never during a render — this pool is rendered on the
  * server too, where `Math.random()` is a hydration mismatch.
  */
-export function pickForMood(mood: Mood, exclude?: string): Suggestion {
+export function pickForMood(
+  mood: Mood,
+  exclude: readonly string[] = [],
+): Suggestion {
   const lines = SUGGESTIONS.filter((suggestion) => suggestion.mood === mood);
-  const pool =
-    lines.length > 1
-      ? lines.filter((suggestion) => suggestion.id !== exclude)
-      : lines;
+  const fresh = lines.filter((line) => !exclude.includes(line.id));
+  const pool = fresh.length > 0 ? fresh : lines;
 
   return pool[Math.floor(Math.random() * pool.length)];
 }

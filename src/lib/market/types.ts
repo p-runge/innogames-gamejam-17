@@ -20,6 +20,17 @@ export type Candle = z.infer<typeof candleSchema>;
  * How a post reads to the market. Five steps rather than a number from -1 to 1:
  * small models return 0.8 and 0.75 for the same feeling, but they pick one of
  * five labels reliably.
+ *
+ * A schema and not a bare union because the client asks the server to draft lines
+ * for named moods, so these cross the wire and have to be validated there.
  */
-export type Mood = "dump" | "bearish" | "neutral" | "bullish" | "moon";
+export const moodSchema = z.enum([
+  "dump",
+  "bearish",
+  "neutral",
+  "bullish",
+  "moon",
+]);
+
+export type Mood = z.infer<typeof moodSchema>;
 
