@@ -1,6 +1,7 @@
 "use client";
 
 import { useAutoAnimate } from "@formkit/auto-animate/react";
+import Image from "next/image";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
 import { POST_COOLDOWN_MS, type YPost } from "~/hooks/use-y-thread";
@@ -9,25 +10,53 @@ import { MOOD_ORDER, MOOD_WORD } from "~/lib/feed/suggestions";
 import type { Mood } from "~/lib/market/types";
 import { formatClock } from "~/lib/trading-session";
 /*
-  Avatars stand in for photos, and there are only two kinds of row in this feed,
-  so there are only two colors: the player blue, everyone replying to them green.
-  Two rather than a hash of the handle, which spread five colors over the rows and
-  made "mine" something the reader had to work out from the name instead of see.
+  There are only two kinds of row in this feed, so the avatar only has to say which
+  one it is: the player has a face, everyone replying to them gets a green circle
+  and an initial. That reads faster than the handle hash this used to do, which
+  spread five colors over the rows and made "mine" something to work out rather
+  than see.
 
   Read off the post's own flag, so it comes out the same on the server as in the
   browser.
 */
-const AVATAR_MINE = "#1d9bf0";
 const AVATAR_REPLY = "#00ba7c";
+
+/** The player's face. */
+const AVATAR_MINE_SRC = "/reicher_dude.jpg";
+
+/**
+ * Behind the photo, not instead of it — the blue shows for the moment before the
+ * image decodes, so the row never opens with a hole in it.
+ */
+const AVATAR_MINE = "#1d9bf0";
 
 function Avatar({ post }: { post: Pick<YPost, "author" | "mine"> }) {
   return (
     <div
       aria-hidden
-      className="grid size-[7cqw] shrink-0 place-items-center rounded-full text-[3cqw] font-bold text-white"
+      // relative + overflow-hidden so the filled image is cropped to the circle.
+      className="relative grid size-[7cqw] shrink-0 place-items-center overflow-hidden rounded-full text-[3cqw] font-bold text-white"
       style={{ backgroundColor: post.mine ? AVATAR_MINE : AVATAR_REPLY }}
     >
-      {post.author.slice(0, 1)}
+      {post.mine ? (
+        <Image
+          src={AVATAR_MINE_SRC}
+          // Decorative, and the container is already aria-hidden: the author's
+          // name is right beside it in text.
+          alt=""
+          // fill rather than width/height, because the box is sized in cqw and
+          // has no pixel size to hand the intrinsic one. object-cover keeps the
+          // photo from stretching into the square it is not.
+          fill
+          // cqw is not a unit `sizes` understands, so this is the avatar's share
+          // of the viewport at the size the laptop screen actually renders — only
+          // a hint for which optimized file to fetch.
+          sizes="10vw"
+          className="object-cover"
+        />
+      ) : (
+        post.author.slice(0, 1)
+      )}
     </div>
   );
 }
