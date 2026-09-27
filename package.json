@@ -8,23 +8,16 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "llm:tips": "node tools/llm-eval/tip-probe.ts"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@formkit/auto-animate": "^0.10.0",
-    "@t3-oss/env-nextjs": "^0.13.11",
-    "@tanstack/react-query": "^5.103.2",
-    "@trpc/client": "11.19.0",
-    "@trpc/server": "11.19.0",
-    "@trpc/tanstack-react-query": "11.19.0",
     "clsx": "^2.1.1",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "server-only": "^0.0.1",
     "tailwind-merge": "^3.7.0",
     "zod": "^4.6.5"
   },

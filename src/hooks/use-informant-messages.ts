@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { TipPayload } from "~/lib/events/types";
+import type { TipPayload } from "~/lib/news/types";
 import { drawFabrication, FABRICATION_GAP_MS } from "~/lib/feed/fabrications";
 import type { Band } from "~/lib/insanity";
 

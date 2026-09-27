@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * A market event the informant leaks before it happens.
  *
@@ -50,3 +52,26 @@ export type NewsEvent = {
   /** Wall-clock milliseconds between the tip reaching the feed and the impulse. */
   delayMs: number;
 };
+
+/**
+ * A message from the informant, as the phone receives it.
+ *
+ * `id` rather than position, because the phone tracks what it has already
+ * announced: two messages sharing an id would collapse into one on the desk.
+ *
+ * A schema rather than a bare type, and it stays one now that nothing puts it on
+ * a wire. The fabrications in `~/lib/feed/fabrications.ts` are built to this
+ * shape deliberately, so the phone cannot tell an invented message from a real
+ * one — and a shape that is only a type is a shape nothing checks.
+ */
+export const tipPayloadSchema = z.object({
+  id: z.string().min(1),
+  sender: z.string().min(1).max(40),
+  /** Without the leading @; the phone adds it. */
+  handle: z.string().min(1).max(15),
+  body: z.string().min(1).max(280),
+  /** The in-game clock, in minutes since midnight, as the posts carry it. */
+  at: z.number(),
+});
+
+export type TipPayload = z.infer<typeof tipPayloadSchema>;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { TweetPayload } from "~/lib/events/types";
+import type { TweetPayload } from "~/lib/news/types";
 import {
   pickReplies,
   REPLIES_PER_POST,

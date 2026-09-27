@@ -1,6 +1,5 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import BrowserFrame from "~/components/browser-frame";
@@ -19,13 +18,10 @@ import {
   useMarketSfx,
   useTipSfx,
 } from "~/hooks/use-ambient-sfx";
-import { useClosingBell } from "~/hooks/use-closing-bell";
-import { useMarketFeed } from "~/hooks/use-market-feed";
 import { usePortfolio } from "~/hooks/use-portfolio";
 import { useYThread } from "~/hooks/use-y-thread";
 import { resolveOutcome } from "~/lib/round-outcome";
 import { TRADING_SESSION } from "~/lib/trading-session";
-import { useTRPC } from "~/lib/trpc/client";
 
 const SYMBOL = "INNO";
 
@@ -74,9 +70,7 @@ export default function GameScene({
 }: {
   onBackToMenu: () => void;
 }) {
-  const trpc = useTRPC();
-  const candles = useMarketFeed();
-  const { ready, closed } = useGameState();
+  const { candles, ready, closed, applyImpulse } = useGameState();
   const inbox = useInformantInbox();
   const { play } = useSound();
   const { insanity, band, register, cost } = useInsanity();
@@ -95,17 +89,6 @@ export default function GameScene({
   useTipSfx({ count: inbox.length, ready });
   useIdleSfx();
 
-  // The post is rendered optimistically, so a failure here costs the broadcast
-  // and nothing else. Logged rather than surfaced: a game jam round is more
-  // playable with a quiet thread than with an error over the chart.
-  const sendTweet = useMutation(
-    trpc.tweets.sendTweet.mutationOptions({
-      onError: (error) => {
-        console.error("sending the tweet failed", error);
-      },
-    }),
-  );
-
   const { posts, cooling, post } = useYThread({
     /*
       The wrapper rather than the button, because this is the only place a post is
@@ -113,10 +96,13 @@ export default function GameScene({
       charging from the button would bill the player for one that never left.
 
       The band is read before the charge, so a post is as strong and as expensive
-      as the state it was written in rather than the state it leaves behind.
+      as the state it was written in rather than the state it leaves behind. The
+      payload goes unread here — the feed has already rendered the post — and the
+      price moves in the same tick as the charge, which is what a round with no
+      server between the two buys.
     */
-    publish: (payload, mood) => {
-      sendTweet.mutate({ ...payload, mania: band.impulse });
+    publish: (_payload, mood) => {
+      applyImpulse(mood, band.impulse);
       register(mood);
     },
     cooldownMs: band.cooldownMs,
@@ -130,8 +116,7 @@ export default function GameScene({
   // as the candles rather than on the player's wall clock.
   const now = latest?.t ?? TRADING_SESSION.openMinutes;
 
-  const bell = useClosingBell({ candles, closed });
-  const outcome = resolveOutcome({ insanity, cash, closed: bell });
+  const outcome = resolveOutcome({ insanity, cash, closed });
 
   /*
     One cue per ending. `outcome` is null until the round is decided and never

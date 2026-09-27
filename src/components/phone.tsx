@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useGameState } from "~/components/game-state-provider";
 import { useInformantInbox } from "~/components/informant-provider";
 import { cn } from "~/lib/cn";
-import type { TipPayload } from "~/lib/events/types";
+import type { TipPayload } from "~/lib/news/types";
 import { formatClock } from "~/lib/trading-session";
 
 /** How long an arriving message stays up before the bubble goes away. */

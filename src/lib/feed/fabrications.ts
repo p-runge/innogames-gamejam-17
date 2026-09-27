@@ -1,4 +1,4 @@
-import type { TipPayload } from "~/lib/events/types";
+import type { TipPayload } from "~/lib/news/types";
 import type { BandId } from "~/lib/insanity";
 
 /**

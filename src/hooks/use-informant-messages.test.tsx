@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TipPayload } from "~/lib/events/types";
+import type { TipPayload } from "~/lib/news/types";
 import { FABRICATION_GAP_MS } from "~/lib/feed/fabrications";
 import { BANDS, type Band } from "~/lib/insanity";
 import { useInformantMessages } from "./use-informant-messages";

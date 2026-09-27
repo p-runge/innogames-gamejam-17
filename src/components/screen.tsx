@@ -1,6 +1,5 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useGameState } from "~/components/game-state-provider";
@@ -10,7 +9,6 @@ import GameScene from "~/components/scenes/game-scene";
 import StartScene from "~/components/scenes/start-scene";
 import SoundProvider, { useSound } from "~/components/sound-provider";
 import { cn } from "~/lib/cn";
-import { useTRPC } from "~/lib/trpc/client";
 
 /**
  * What the laptop's display is currently showing. The scenes are exclusive —
@@ -41,13 +39,10 @@ export default function Screen({ className }: { className: string }) {
 
 /** The scene switch, one level in so it can reach the sound machine. */
 function Display() {
-  const trpc = useTRPC();
   const { start } = useGameState();
   const { reset } = useInsanity();
   const { play, startMusic } = useSound();
   const [scene, setScene] = useState<Scene>("start");
-
-  const endRound = useMutation(trpc.session.end.mutationOptions());
 
   return (
     <>
@@ -68,14 +63,9 @@ function Display() {
         />
       ) : (
         <GameScene
-          onBackToMenu={() => {
-            /*
-              The server has to be told, or its ticker outlives the ending and the
-              next start joins the abandoned round instead of opening a day.
-            */
-            endRound.mutate();
-            setScene("start");
-          }}
+          // Nothing to tell anybody: the market ticks inside this page and
+          // stops when the next round replaces it.
+          onBackToMenu={() => setScene("start")}
         />
       )}
       {/*

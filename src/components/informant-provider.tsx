@@ -5,7 +5,7 @@ import { createContext, useContext } from "react";
 import { useGameState } from "~/components/game-state-provider";
 import { useInsanity } from "~/components/insanity-provider";
 import { useInformantMessages } from "~/hooks/use-informant-messages";
-import type { TipPayload } from "~/lib/events/types";
+import type { TipPayload } from "~/lib/news/types";
 import { TRADING_SESSION } from "~/lib/trading-session";
 
 const InformantContext = createContext<TipPayload[] | null>(null);

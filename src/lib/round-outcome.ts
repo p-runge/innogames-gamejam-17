@@ -12,34 +12,6 @@ export const WIN_CASH = 1_000_000;
 
 export type Outcome = "won" | "insane" | "bell";
 
-/**
- * Whether the server's `closed` flag is about the round being played now.
- *
- * The snapshot is cached and refetched on a timer, so for a moment after the
- * player starts a round it still describes the one they just left. Starting a
- * second round switches to the trading screen immediately, and without this the
- * stale flag called that round over on its first frame and threw the player
- * straight back to the game over screen — with the meter already reset, so the
- * tally read zero.
- *
- * Comparing the two timestamps is enough: a snapshot older than the start cannot
- * know about the round the start opened. A page that never pressed start passes
- * `startedAt: 0`, so a browser joining a finished round still believes it.
- */
-export function roundHasClosed({
-  closed,
-  snapshotAt,
-  startedAt,
-}: {
-  /** What the latest snapshot said. */
-  closed: boolean;
-  /** When that snapshot's data was written. */
-  snapshotAt: number;
-  /** When this page last asked for a round, or 0 if it never has. */
-  startedAt: number;
-}): boolean {
-  return closed && snapshotAt > startedAt;
-}
 
 /**
  * How the round ended, or `null` while it has not.

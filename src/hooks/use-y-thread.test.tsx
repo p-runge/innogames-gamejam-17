@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TweetPayload } from "~/lib/events/types";
+import type { TweetPayload } from "~/lib/news/types";
 import { REPLY_DELAY_MS } from "~/lib/feed/replies";
 import type { Mood } from "~/lib/market/types";
 import { TRADING_SESSION } from "~/lib/trading-session";
