@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { TweetPayload } from "~/lib/events/types";
-import { pickReplies, REPLY_DELAY_MS } from "~/lib/feed/replies";
+import {
+  pickReplies,
+  REPLIES_PER_POST,
+  REPLY_DELAY_MS,
+} from "~/lib/feed/replies";
 import { pickForMood } from "~/lib/feed/suggestions";
 import { buildThread, type FeedPost } from "~/lib/feed/thread";
 import type { Mood } from "~/lib/market/types";
@@ -39,11 +43,24 @@ export function useYThread({
   publish,
   author = "You",
   handle = "@you",
+  cooldownMs = POST_COOLDOWN_MS,
+  replies = REPLIES_PER_POST,
 }: {
   /** Hands the post to the server, which applies its mood to the price. */
   publish: (payload: TweetPayload) => void;
   author?: string;
   handle?: string;
+  /**
+   * How long the buttons stay dead. A parameter rather than the constant,
+   * because a manic poster fires faster: the bands in `~/lib/insanity` own the
+   * number and this hook only obeys it.
+   */
+  cooldownMs?: number;
+  /**
+   * How many replies one post draws. Also a band's business — the feed closing
+   * in is one of the things going insane feels like.
+   */
+  replies?: number;
 }) {
   const [mine, setMine] = useState<YPost[]>([]);
   const [cooling, setCooling] = useState(false);
@@ -100,7 +117,7 @@ export function useYThread({
         update, and a two-second timeout outliving the round costs nothing — which is
         not true of the cooldown, whose timer this mirrors.
       */
-      pickReplies(mood, undefined, usedReplies.current).forEach(
+      pickReplies(mood, replies, usedReplies.current).forEach(
         (reply, index) => {
           usedReplies.current.push(reply.lineId);
 
@@ -126,9 +143,9 @@ export function useYThread({
       setCooling(true);
       window.setTimeout(() => {
         if (!dropped.current) setCooling(false);
-      }, POST_COOLDOWN_MS);
+      }, cooldownMs);
     },
-    [author, cooling, handle, publish],
+    [author, cooling, cooldownMs, handle, publish, replies],
   );
 
   const posts = useMemo(() => buildThread(mine), [mine]);

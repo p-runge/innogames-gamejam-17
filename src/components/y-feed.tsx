@@ -4,7 +4,9 @@ import { useAutoAnimate } from "@formkit/auto-animate/react";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 
-import { POST_COOLDOWN_MS, type YPost } from "~/hooks/use-y-thread";
+import InsanityMeter, { formatCost } from "~/components/insanity-meter";
+import { type YPost } from "~/hooks/use-y-thread";
+import type { Band } from "~/lib/insanity";
 import { cn } from "~/lib/cn";
 import { MOOD_ORDER, MOOD_WORD } from "~/lib/feed/suggestions";
 import type { Mood } from "~/lib/market/types";
@@ -261,12 +263,20 @@ function Post({ post }: { post: YPost }) {
 export default function YFeed({
   posts,
   cooling,
+  insanity,
+  band,
+  costFor,
   onPost,
   className,
 }: {
   posts: YPost[];
   /** True while the post cooldown runs, during which the buttons are dead. */
   cooling: boolean;
+  /** The meter's reading, shown over the buttons that fill it. */
+  insanity: number;
+  band: Band;
+  /** What each mood costs right now, for the amount on its button. */
+  costFor: (mood: Mood) => number;
   onPost: (mood: Mood) => void;
   className?: string;
 }) {
@@ -404,7 +414,7 @@ export default function YFeed({
           <div
             aria-hidden
             data-cooldown
-            style={{ animation: `y-cooldown ${POST_COOLDOWN_MS}ms linear forwards` }}
+            style={{ animation: `y-cooldown ${band.cooldownMs}ms linear forwards` }}
             className="absolute inset-x-0 top-0 h-[0.5cqw] origin-left bg-feed-accent"
           />
         )}
@@ -425,6 +435,7 @@ export default function YFeed({
           every button stays where the player last saw it. Equal fractions rather
           than flex-basis, so the widths do not shift with the words in them.
         */}
+        <InsanityMeter insanity={insanity} band={band} className="mt-[1.4cqw]" />
         <ul className="mt-[1.4cqw] grid grid-cols-5 gap-[1.2cqw]">
           {MOOD_ORDER.map((mood) => {
             const mark = MOOD_MARK[mood];
@@ -450,6 +461,14 @@ export default function YFeed({
                   </span>
                   <span className="truncate text-[3cqw] leading-none font-bold">
                     {MOOD_WORD[mood]}
+                  </span>
+                  {/*
+                    The effective amount, not the list price, which is how the
+                    player finds out that calming down gets more expensive the
+                    worse things get.
+                  */}
+                  <span className="shrink-0 text-[1.9cqw] leading-none text-feed-muted tabular-nums">
+                    {formatCost(costFor(mood))}
                   </span>
                 </button>
               </li>

@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import BrowserFrame from "~/components/browser-frame";
 import CandleChart from "~/components/candle-chart";
 import { useGameState } from "~/components/game-state-provider";
+import { useInsanity } from "~/components/insanity-provider";
 import Portfolio from "~/components/portfolio";
 import { useSound } from "~/components/sound-provider";
 import TradeControls from "~/components/trade-controls";
@@ -61,6 +62,7 @@ export default function GameScene() {
   const candles = useMarketFeed();
   const { tips, ready } = useGameState();
   const { play } = useSound();
+  const { insanity, band, cost } = useInsanity();
   const { cash, shares, transactions, startingCash, avgCost, trade } =
     usePortfolio({ symbol: SYMBOL });
 
@@ -81,7 +83,17 @@ export default function GameScene() {
     }),
   );
 
-  const { posts, cooling, post } = useYThread({ publish: sendTweet.mutate });
+  const { posts, cooling, post } = useYThread({
+    /*
+      Wrapped rather than handed `sendTweet.mutate` directly, because this is
+      where the meter gets charged: `useYThread` swallows a press during the
+      cooldown, and charging from the button would bill the player for a post
+      that never left.
+    */
+    publish: (payload) => sendTweet.mutate(payload),
+    cooldownMs: band.cooldownMs,
+    replies: band.replies,
+  });
 
   const latest = candles.at(-1);
   // Orders fill at the forming candle's close, which is the live price.
@@ -108,6 +120,9 @@ export default function GameScene() {
         <YFeed
           posts={posts}
           cooling={cooling}
+          insanity={insanity}
+          band={band}
+          costFor={cost}
           onPost={(mood) => {
             post(mood, now);
             play("feed-post");
